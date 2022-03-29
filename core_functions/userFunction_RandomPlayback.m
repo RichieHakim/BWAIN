@@ -10,6 +10,31 @@ global counter_frameNum counter_CS_threshold counter_trialDuration counter_timeo
     vals img_MC_moving img_MC_moving_rolling img_ROI_corrected...
     logger loggerNames...
     
+persistent registrationImage refIm_crop_conjFFT_shift loadedCheck_registrationImage...
+    
+%% Set stuff for motion correction
+
+directory = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_19\zstack';
+
+currentImage = source.hSI.hDisplay.lastFrame{1};
+
+
+if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1
+    tmp = load([directory , '\stack.mat']);
+%     file_fieldName = fieldnames(tmp);
+%     registrationImage = eval(['stack.' , file_fieldName{1}]);
+    registrationImage = eval(['tmp.stack.' , 'stack_avg']);
+    loadedCheck_registrationImage=1;
+    
+%     disp(size(registrationImage))
+    
+    clear refIm_crop_conjFFT_shift_centerIdx
+    for ii = 1:size(registrationImage,1)
+        refIm_crop_conjFFT_shift(ii,:,:) = make_fft_for_MC(squeeze(registrationImage(ii,:,:)));
+    end
+    
+end
+    
 %% == USER SETTINGS ==
 % ROI vars
 frameRate = 30;
@@ -25,15 +50,17 @@ numCells = numel(ensemble_assignments);
 
 % numFramesToAvgForMotionCorr = 10;
 
-threshold_value =   1.0;
+threshold_value =   0.8;
 
-range_cursorSound = [-threshold_value , threshold_value]*2;
+% range_cursorSound = [-threshold_value , threshold_value]*2;
+range_cursorSound = [-0.5 , threshold_value]*2;
 % range_cursorSound = [-2 10];
-range_freqOutput = [2000 16000]; % this is set in the teensy code (Ofer made it)
+range_freqOutput = [2000 18000]; % this is set in the teensy code (Ofer made it)
 voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
 
+
 % reward_duration = 150; % in ms
-reward_duration = 40; % in ms
+reward_duration = 64; % in ms
 % reward_delay = 200; % in ms
 reward_delay = 0; % in ms
 LED_duration = .2; % in s
@@ -47,7 +74,7 @@ duration_timeout = 5;
 duration_threshold = 0.066;
 duration_rewardTone = 1.5;
 % duration_ITI_success = 1;
-duration_ITI_success = 1;
+duration_ITI_success = 2;
 duration_rewardDelivery = 0.25;
 
 duration_rollingStats = round(frameRate * 30);
@@ -67,6 +94,74 @@ end
 % =====================================================
 
 counter_frameNum = counter_frameNum + 1;
+
+%% == MOTION CORRECTION ==
+
+numFramesToAvgForMotionCorr = 10;
+n_slices = size(registrationImage, 1);
+
+if ~isa(img_MC_moving_rolling, 'double') || isempty(img_MC_moving_rolling)
+    %     img_MC_moving_rolling = img_MC_moving;
+    img_MC_moving_rolling = zeros([size(registrationImage,2), size(registrationImage,3) , numFramesToAvgForMotionCorr]);
+end
+if sum(size(img_MC_moving_rolling) == [size(registrationImage,2), size(registrationImage,3) , numFramesToAvgForMotionCorr]) ~= 3
+    disp('changing size of img_MC_moving_rolling')
+    img_MC_moving_rolling = zeros([size(registrationImage,2), size(registrationImage,3) , numFramesToAvgForMotionCorr]);
+end
+
+img_MC_moving = currentImage;
+
+% img_MC_moving_rolling(:,:,end+1) = img_MC_moving;
+if counter_frameNum >= 0
+    img_MC_moving_rolling(:,:,mod(counter_frameNum , numFramesToAvgForMotionCorr)+1) = img_MC_moving;
+end
+img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
+% size(img_MC_moving_rolling)
+
+% figure; imagesc(img_MC_moving_rollingAvg)
+% figure; imagesc(img_MC_moving_rollingAvg - double(currentImage))
+
+% [xShift , yShift, cxx, cyy] = motionCorrection_singleFOV(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop , baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
+% [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg(1:100,1:100) , baselineStuff.MC.meanImForMC_crop(1:100,1:100) , baselineStuff.MC.meanImForMC_crop_conjFFT_shift(1:100,1:100));
+% [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , registrationImage );
+% [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop);
+
+% threshold = prctile(img_MC_moving_rollingAvg, 95);
+% % image_toUse = img_MC_moving_rollingAvg;
+% image_toUse = img_MC_moving_rollingAvg .* (img_MC_moving_rollingAvg < threshold) + (img_MC_moving_rollingAvg > threshold).*threshold;
+% figure; imagesc(image_toUse)
+
+xShift = NaN(n_slices,1);
+yShift = NaN(n_slices,1);
+cxx = NaN(n_slices, 256);
+cyy = NaN(n_slices, 256);
+% disp(size(refIm_crop_conjFFT_shift))
+% disp(size(squeeze(refIm_crop_conjFFT_shift_centerIdx(3,:,:))))
+
+for z_frame = 3 % RH: ASSUMING THAT 3RD FRAME IS THE MIDDLE FRAME TO ALIGN TO
+%     [yShift_tmp , xShift_tmp, cyy_tmp, cxx_tmp] = motionCorrection_ROI(img_MC_moving_rollingAvg , squeeze(registrationImage(z_frame,:,:)) );
+    [xShift_tmp, yShift_tmp, cxx_tmp, cyy_tmp] = motionCorrection_ROI(crop_image_for_fft(img_MC_moving_rollingAvg) , [] , squeeze(refIm_crop_conjFFT_shift(z_frame,:,:)));
+    xShift(z_frame,:) = squeeze(xShift_tmp);
+    yShift(z_frame,:) = squeeze(yShift_tmp);
+    cxx(z_frame,:) = cxx_tmp;
+    cyy(z_frame,:) = cyy_tmp;
+end
+
+MC_corr = max(cxx, [], 2);
+
+% xShift = 0;
+% yShift = 0;
+% MC_corr = 0;
+
+% img_ROI_corrected{ii} = currentImage((baselineStuff.idxBounds_ROI{ii}(1,2):baselineStuff.idxBounds_ROI{ii}(2,2)) +round(yShift(ii)) ,...
+%     (baselineStuff.idxBounds_ROI{ii}(1,1):baselineStuff.idxBounds_ROI{ii}(2,1)) +round(xShift(ii))); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
+
+% if abs(xShift) >80
+%     xShift = 0;
+% end
+% if abs(yShift) >80
+%     yShift = 0;
+% end
 
 %% == EXTRACT ROI VALUES ==
 if numel(vals) ~= numCells
@@ -243,6 +338,17 @@ if CE_experimentRunning
     % %     if mod(counter_frameNum,1) == 0
     %         plotUpdatedMotionCorrectionImages(baselineStuff.motionCorrectionRefImages.img_MC_reference, img_MC_moving_rollingAvg , img_ROI_corrected, 'Motion Correction')
     %     end
+    
+    % MC stuff
+    plotUpdatedOutput3([xShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 3)
+    plotUpdatedOutput4([yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 3)
+
+%     if counter_frameNum > 15
+        %     if counter_frameNum > 1
+        plotUpdatedOutput5(MC_corr,...
+            duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 3)
+%     end
+
 end
 %% Teensy Output calculations
 if CE_experimentRunning
@@ -451,4 +557,48 @@ end
         save([directory , '\expParams.mat'], 'expParams')
         %         save([directory , '\motionCorrectionRefImages.mat'], 'motionCorrectionRefImages')
     end
+end
+
+%%
+function refIm_crop_conjFFT_shift = make_fft_for_MC(refIm)
+    refIm_crop = crop_image_for_fft(refIm);
+    
+    refIm_crop_conjFFT = conj(fft2(refIm_crop));
+    refIm_crop_conjFFT_shift = fftshift(refIm_crop_conjFFT);
+    
+%     disp(size(refIm_crop_conjFFT_shift))
+
+
+    % size(refIm_crop_conjFFT_shift,1);
+    % if mod(size(refIm_crop_conjFFT_shift,1) , 2) == 0
+    %     disp('RH WARNING: y length of refIm_crop_conjFFT_shift is even. Something is very wrong')
+    % end
+    % if mod(size(refIm_crop_conjFFT_shift,2) , 2) == 0
+    %     disp('RH WARNING: x length of refIm_crop_conjFFT_shift is even. Something is very wrong')
+    % end
+
+%     refIm_crop_conjFFT_shift_centerIdx = ceil(size(refIm_crop_conjFFT_shift)/2);
+%     disp(size(refIm_crop_conjFFT_shift_centerIdx))
+end
+function refIm_crop = crop_image_for_fft(refIm)
+    
+    refIm = single(refIm);
+%     disp(size(refIm))
+    % crop_factor = 5;
+    crop_size = 256; % MAKE A POWER OF 2! eg 32,64,128,256,512
+
+
+    length_x = size(refIm,2);
+    length_y = size(refIm,1);
+    middle_x = size(refIm,2)/2;
+    middle_y = size(refIm,1)/2;
+
+    % indRange_y_crop = [round(middle_y - length_y/crop_factor) , round(middle_y + length_y/crop_factor) ];
+    % indRange_x_crop = [round(middle_x - length_y/crop_factor) , round(middle_x + length_y/crop_factor) ];
+
+    indRange_y_crop = [round(middle_y - (crop_size/2-1)) , round(middle_y + (crop_size/2)) ];
+    indRange_x_crop = [round(middle_x - (crop_size/2-1)) , round(middle_x + (crop_size/2)) ];
+    
+%     disp(indRange_y_crop)
+    refIm_crop = refIm(indRange_y_crop(1) : indRange_y_crop(2) , indRange_x_crop(1) : indRange_x_crop(2)) ;
 end

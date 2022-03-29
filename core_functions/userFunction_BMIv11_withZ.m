@@ -1,8 +1,8 @@
-function [logger_output , logger_valsROIs_output  , NumOfRewardsAcquired] =...
-    BMIv11_simulation_imageInput(currentImage, counter_frameNum , baselineStuff , trialStuff,  last_frameNum , threshold_value , threshold_quiescence, num_frames_total)
+function voltage_cursorCurrentPos =...
+    userFunction_BMIv11_withZ(source, event, varargin)
 %% Variable stuff
 tic
-global counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneHold...
+global counter_frameNum counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneHold...
     counter_rewardDelivery counter_ITI_successful...
     CE_buildingUpStats CE_experimentRunning CE_waitForBaseline CE_trial CE_timeout CE_rewardToneHold...
     CE_rewardDelivery CE_ITI_successful...
@@ -12,36 +12,71 @@ global counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneH
     img_MC_moving img_MC_moving_rolling...
     logger loggerNames logger_valsROIs...
     runningVals running_cursor_raw counter_runningVals counter_runningCursor...
-    rolling_var_obj_cells rolling_var_obj_cursor
+    rolling_var_obj_cells rolling_var_obj_cursor loadedCheck_registrationImage...
+    registrationImage referenceDiffs refIm_crop_conjFFT_shift refIm_crop indRange_y_Crop indRange_x_Crop...
+    img_MC_moving_rolling_z refIm_crop_conjFFT_shift_masked counter_last_z_correction...
 
-% persistent baselineStuff
+persistent baselineStuff trialStuff 
 
-% currentImage = source.hSI.hDisplay.lastFrame{1};
+currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-% directory = 'D:\RH_local\data\scanimage data\round 4 experiments\mouse 8.6\20201223_rich\sesh_2';
+directory = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220329';
+directory_zstack = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\zstack';
+maskPref = 1;                                                                     
+borderOuter = 20;                                                                
+borderInner = 10;      
 
 
-% if ~isstruct(baselineStuff)
-%     load([directory , '\baseline\baselineStuff.mat']);
-% end
-% if ~isstruct(trialStuff)
-%     load([directory , '\trialStuff.mat']);
-% end
+if ~isstruct(baselineStuff)
+    path_baselineStuff = [directory , '\baseline\baselineStuff.mat'];
+    load(path_baselineStuff);
+    disp(['LOADED baselineStuff from:  ' , path_baselineStuff])
+end
+if ~isstruct(trialStuff)
+    path_trialStuff = [directory , '\analysis_lastNight\trialStuff.mat'];
+    load(path_trialStuff);
+    disp(['LOADED trialStuff from:  ' , path_trialStuff])
+end
+
+%loadedCheck_registrationImage = []
+if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1
+    tmp = load([directory_zstack , '\stack.mat']);
+    registrationImage = eval(['tmp.stack.' , 'stack_avg']);
+    referenceDiffs = eval(['tmp.stack.','step_size_um']);
+    loadedCheck_registrationImage=1;
+
+    for ii = 1:size(registrationImage,1)
+        [refIm_crop_conjFFT_shift(ii,:,:), ~, indRange_y_Crop, indRange_x_Crop] = make_fft_for_MC(squeeze(registrationImage(ii,:,:)));
+        refIm_crop(ii,:,:) = registrationImage(ii, indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+        if maskPref
+            refIm_crop_conjFFT_shift_masked(ii,:,:) = maskImage(squeeze(refIm_crop_conjFFT_shift(ii,:,:)), borderOuter, borderInner);
+        end
+    end    
+    disp('Loaded z-stack')
+end
 
 %% == USER SETTINGS ==
 % ROI vars
 frameRate                   = 30;
 duration_plotting           = 30 * frameRate; % ADJUSTABLE: change number value (in seconds). Duration of x axis in plots
-duration_session            = num_frames_total; % ADJUSTABLE: change number value (in seconds/minutes)
-win_smooth                  = 5; % smoothing window (in frames)
+duration_session            = frameRate * 60 * 60; % ADJUSTABLE: change number value (in seconds/minutes)
+win_smooth                  = 4; % smoothing window (in frames)
 % F_baseline_prctile          = 30; % percentile to define as F_baseline of cells
-% show_MC_ref_images          = 0;
+show_MC_ref_images          = 0;
 
 numFramesToAvgForMotionCorr = 10;
+% numFramesToMedForZCorr      = 30;
+% zCorrFrameInterval          = 30; 
+numFramesToMedForZCorr      = 30*3;
+zCorrFrameInterval          = 15; 
+%zCorrPtile                  = 10;
+interval_z_correction       = 20*frameRate;
+% max_z_delta                 = referenceDiffs/2;
+max_z_delta                 = 1;
 
-% threshold_value             = 30000;
+threshold_value             = 0.95;
 
 % numCells = max(baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,1));
 numCells = baselineStuff.ROIs.num_cells;
@@ -51,7 +86,7 @@ range_cursor = [-threshold_value threshold_value];
 range_freqOutput = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
 voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
 
-reward_duration = 50; % in ms
+reward_duration = 64; % in ms calibrated to 3.6 uL/reward 
 reward_delay = 0; % in ms
 % reward_delay = 5; % in ms
 LED_duration = 0.2; % in s
@@ -65,7 +100,7 @@ duration_trial          = 20;
 duration_timeout        = 4;
 duration_threshold      = 0.066;
 duration_rewardTone     = 1.5; % currently unused
-duration_ITI_success    = 1;
+duration_ITI_success    = 3;
 duration_rewardDelivery = 0.20;
 
 duration_rollingStats       = round(frameRate * 60 * 15);
@@ -73,12 +108,12 @@ subSampleFactor_runningVals = 1;
 numSamples_rollingStats = round(duration_rollingStats/subSampleFactor_runningVals);
 duration_buildingUpStats    = round(frameRate * 60 * 1);
 
-% threshold_quiescence    = 0;
+threshold_quiescence    = 0;
 
 %% == Session Starting & counting ==
 
 % == Start Session ==
-if counter_frameNum == 1
+if isempty(counter_frameNum)
     disp('hi. NEW SESSION STARTED')
     startSession
 end
@@ -86,8 +121,11 @@ end
 % startSession
 % =====================================================
 
-% counter_frameNum = counter_frameNum + 1;
+counter_frameNum = counter_frameNum + 1;
 
+if counter_frameNum == 1
+    disp('frameNum = 1')
+end
 % endSession
 
 % %% SAVING
@@ -109,16 +147,17 @@ end
 % img_MC_moving_rolling = [];
 
 if isempty(img_MC_moving)
-    img_MC_moving = baselineStuff.MC.meanImForMC_crop;
+    img_MC_moving = registrationImage(3, indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
 end
+
+% img_MC_moving = currentImage(baselineStuff.MC.indRange_y_crop(1):baselineStuff.MC.indRange_y_crop(2)  ,...
+%     baselineStuff.MC.indRange_x_crop(1):baselineStuff.MC.indRange_x_crop(2)); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
+img_MC_moving = currentImage(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
 
 if ~isa(img_MC_moving_rolling, 'uint16')
     %     img_MC_moving_rolling = img_MC_moving;
-    img_MC_moving_rolling = zeros([size(baselineStuff.MC.meanImForMC_crop) , numFramesToAvgForMotionCorr]);
+    img_MC_moving_rolling = zeros([size(img_MC_moving) , numFramesToAvgForMotionCorr]);
 end
-
-img_MC_moving = currentImage(baselineStuff.MC.indRange_y_crop(1):baselineStuff.MC.indRange_y_crop(2)  ,...
-    baselineStuff.MC.indRange_x_crop(1):baselineStuff.MC.indRange_x_crop(2)); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
 
 % img_MC_moving_rolling(:,:,end+1) = img_MC_moving;
 if counter_frameNum >= 0
@@ -129,7 +168,7 @@ img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
 
 % [xShift , yShift, cxx, cyy] = motionCorrection_singleFOV(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop , baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
 % [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg(1:100,1:100) , baselineStuff.MC.meanImForMC_crop(1:100,1:100) , baselineStuff.MC.meanImForMC_crop_conjFFT_shift(1:100,1:100));
-[xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop , baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
+[xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift(2,:,:)), maskPref, borderOuter, borderInner);
 % [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop);
 MC_corr = max(cxx);
 
@@ -147,6 +186,18 @@ if abs(yShift) >80
     yShift = 0;
 end
 
+%% == Z-CORRECTION ==
+
+% Track Frames for Rolling Median 
+if ~isa(img_MC_moving_rolling_z, 'uint16') | size(img_MC_moving_rolling_z,3) ~= numFramesToMedForZCorr
+    img_MC_moving_rolling_z = uint16(zeros([size(img_MC_moving) , numFramesToMedForZCorr]));
+end
+
+
+if (counter_frameNum >= 0) && (mod(counter_frameNum, zCorrFrameInterval) == 0)
+    img_MC_moving_rolling_z(:,:,mod(counter_frameNum/zCorrFrameInterval ,numFramesToMedForZCorr)+1) = img_MC_moving;
+end
+
 
 %% == EXTRACT DECODER Product of Current Image and Decoder Template ==
 
@@ -154,7 +205,7 @@ end
 % tic
 x_idx     =  baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,2) +xShift;
 y_idx     =  baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,3) +yShift;
- 
+
 idx_safe = single((x_idx < 1024) &...
     (x_idx > 0) & ...
     (y_idx < 512) & ...
@@ -287,9 +338,9 @@ if CE_experimentRunning
             soundVolume = 0;
         end
         %     setSoundVolumeTeensy(soundVolume);
-%         source.hSI.task_cursorAmplitude.writeDigitalData(soundVolume);
-%         source.hSI.task_goalAmplitude.writeDigitalData(1);
-%         source.hSI.task_cursorGoalPos.writeAnalogData(3.2);
+        source.hSI.task_cursorAmplitude.writeDigitalData(soundVolume);
+        source.hSI.task_goalAmplitude.writeDigitalData(1);
+        source.hSI.task_cursorGoalPos.writeAnalogData(3.2);
         
         frequencyOverride = 0;
     end
@@ -321,7 +372,8 @@ if CE_experimentRunning
         soundVolume = 0;
         NumOfTimeouts = NumOfTimeouts + 1;
         %     setSoundVolumeTeensy(soundVolume);
-        %         source.hSI.task_AmplitudeOutputVoltage.writeAnalogData(soundVolume);
+        source.hSI.task_cursorAmplitude.writeDigitalData(soundVolume);
+        source.hSI.task_goalAmplitude.writeDigitalData(0);
     end
     % COUNT TIMEOUT DURATION
     if CE_timeout
@@ -354,7 +406,7 @@ if CE_experimentRunning
         %     setSoundVolumeTeensy(soundVolume);
         if trialType_rewardOn
         %     giveReward2(1, 1, reward_duration, reward_delay, LED_duration, 1, LED_ramp_duration); % in ms. This is in the START section so that it only delivers once
-        %         giveReward3(source, 1, 0, reward_duration, reward_delay, LED_duration, 1, LED_ramp_duration); % in ms. This is in the START section so that it only delivers once
+            giveReward3(source, 1, 0, reward_duration, reward_delay, LED_duration, 1, LED_ramp_duration); % in ms. This is in the START section so that it only delivers once
         %         giveReward3(source, 1, 0, 500, reward_delay, LED_duration, 1, LED_ramp_duration); % in ms. This is in the START section so that it only delivers once
         end
         NumOfRewardsAcquired = NumOfRewardsAcquired + 1;
@@ -374,14 +426,33 @@ if CE_experimentRunning
         frequencyOverride = 0;
     end
     
-    % START INTER-TRIAL-INTERVAL (POST-REWARD)
+    [delta, frame_corrs] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
+        maskPref, borderOuter, borderInner);
+    plotUpdatedOutput7(frame_corrs,...
+        duration_plotting, frameRate, 'Z Frame Correlations', 10, 10)
+    delta_moved = 0; % place holder to potentially be overwritten by 'moveFastZ'
+    
+    % START INTER-TRIAL-INTERVAL (POST-REWARD): WITH Z-CORRECTION
     if ET_ITI_successful
         ET_ITI_successful = 0;
         CE_ITI_successful = 1;
         counter_ITI_successful = 0;
         soundVolume = 0;
-%         source.hSI.task_cursorAmplitude.writeDigitalData(soundVolume);
-%         source.hSI.task_goalAmplitude.writeDigitalData(0);
+        source.hSI.task_cursorAmplitude.writeDigitalData(soundVolume);
+        source.hSI.task_goalAmplitude.writeDigitalData(0);
+        
+        if counter_frameNum > (counter_last_z_correction + interval_z_correction)
+
+            
+            if delta ~=0
+                clampedDelta = sign(delta) * min(abs(delta), max_z_delta);
+                disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
+                currentPosition = moveFastZ(source, [], clampedDelta, [], [20,60]);
+                delta_moved = clampedDelta;
+                counter_last_z_correction = counter_frameNum;
+            end
+        end
+        
     end
     % COUNT INTER-TRIAL-INTERVAL (POST-REWARD)
     if CE_ITI_successful
@@ -403,8 +474,9 @@ if CE_experimentRunning
     else
         voltage_cursorCurrentPos = convert_cursor_to_voltage(cursor_output , range_cursor, voltage_at_threshold);
     end
+%     voltage_cursorCurrentPos
 %     voltage_cursorCurrentPos = (mod(counter_frameNum,2)+0.5);
-%     source.hSI.task_cursorCurrentPos.writeAnalogData(voltage_cursorCurrentPos);
+    source.hSI.task_cursorCurrentPos.writeAnalogData(double(voltage_cursorCurrentPos));
 
     freqToOutput = convert_voltage_to_frequency(voltage_cursorCurrentPos , 3.3 , range_freqOutput); % for logging purposes only. function should mimic (exactly) the voltage to frequency transformation on teensy
 end
@@ -414,55 +486,42 @@ end
 % disp(['Logger & Params Saved: frameCounter = ' num2str(counter_frameNum)]);
 %% Plotting
 
-% if CE_experimentRunning
-%     % %     plotUpdatedOutput([cursor , dFoF.*scale_factors], duration_plotting, frameRate, 'Cursor , E1 , E2', 10, 20)
-%
-%     %     plotUpdatedOutput([cursor , dFoF], duration_plotting, frameRate, 'Cursor , E1 , E2', 10, 59)
-%
-%     plotUpdatedOutput2([CE_waitForBaseline*.9, CE_trial*.8, CE_rewardToneHold*.7,...
-%         CE_rewardDelivery*.6, CE_ITI_successful*.5, CE_timeout*.4,...
-%         CE_buildingUpStats*.3, CE_experimentRunning*.2]...
-%         , duration_plotting, frameRate, 'Rewards', 10, 52, ['Num of Rewards:  ' , num2str(NumOfRewardsAcquired)])
-%
-%     plotUpdatedOutput3([xShift' yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 51)
-%
-%     %     if counter_frameNum > 15
-%     %         %     if counter_frameNum > 1
-%     %         plotUpdatedOutput4([nanmean(logger.motionCorrection.MC_correlation(counter_frameNum-15:counter_frameNum,:),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 62)
-%     %         %         plotUpdatedOutput4([nanmean(logger.motionCorrection.MC_correlation(counter_frameNum-15:counter_frameNum,:),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 12)
-%     %     end
-%
-%     %     plotUpdatedOutput4(dFoF(1:10) , duration_plotting , frameRate , 'dFoF' , 20, 50)
-%     plotUpdatedOutput6(cursor , duration_plotting , frameRate , 'cursor' , 10,53)
-%     %     plotUpdatedOutput7(logger.motionCorrection.MC_correlation(counter_frameNum-1) , duration_plotting , frameRate , 'Motion Correction Correlation' , 10,54)
-%
-%
-%     %     if mod(counter_frameNum,300) == 0 && counter_frameNum > 300
-%     %         plotUpdatedOutput5([nanmean(logger.motionCorrection.MC_correlation(counter_frameNum-300:counter_frameNum,:),1)],...
-%     %             duration_session, frameRate, 'Motion Correction Correlation All', 10, 50)
-%     %     end
-%
-%     %     if show_MC_ref_images
-%     %             if mod(counter_frameNum,1) == 0
-%     % %         if mod(counter_frameNum,11) == 0
-%     %             plotUpdatedMotionCorrectionImage_singleRegion(baselineStuff.MC.meanImForMC_crop , img_MC_moving_rollingAvg , img_MC_moving_rollingAvg, 'Motion Correction')
-%     %         end
-%     %     end
-%
-%
-% end
-
-% % if mod(counter_frameNum,30*60*5) == 0
-% if counter_frameNum == round(duration_session * 0.9)...
-%         || counter_frameNum == round(duration_session * 0.95)...
-%         || counter_frameNum == round(duration_session * 0.98)...
-%         || counter_frameNum == round(duration_session * 0.99)
-%     save([directory , '\logger.mat'], 'logger')
-%     disp(['Logger Saved: frameCounter = ' num2str(counter_frameNum)]);
-% end
-
-% counter_frameNum
-
+if counter_frameNum>1
+    %     plotUpdatedOutput([cursor , dFoF.*scale_factors], duration_plotting, frameRate, 'Cursor , E1 , E2', 10, 20)
+    
+%         plotUpdatedOutput([cursor , dFoF], duration_plotting, frameRate, 'Cursor , E1 , E2', 10, 59)
+    
+    plotUpdatedOutput2([CE_waitForBaseline*0.1, CE_trial*0.2,...
+        CE_rewardDelivery*0.3, CE_timeout*0.4, CE_buildingUpStats*0.5, fakeFeedback_inUse*0.6]...
+        , duration_plotting, frameRate, 'Rewards', 10, 52, ['# Rewards: ' , num2str(NumOfRewardsAcquired) , ' ; # Timeouts: ' , num2str(NumOfTimeouts)])
+    
+    plotUpdatedOutput3([xShift' yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 51)
+    
+    if counter_frameNum > 25
+        %     if counter_frameNum > 1
+        plotUpdatedOutput4([nanmean(logger.motionCorrection(counter_frameNum-15:counter_frameNum,3),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 62)
+        %         plotUpdatedOutput4([nanmean(logger.motionCorrection.MC_correlation(counter_frameNum-15:counter_frameNum,:),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 12)
+    end
+    
+    %     plotUpdatedOutput4(dFoF(1:10) , duration_plotting , frameRate , 'dFoF' , 20, 50)
+    plotUpdatedOutput6(cursor_output , duration_plotting , frameRate , 'cursor' , 10,53)
+    %     plotUpdatedOutput7(logger.motionCorrection(counter_frameNum,3) , duration_plotting , frameRate , 'Motion Correction Correlation' , 10,54)
+    
+    
+    if mod(counter_frameNum,300) == 0 && counter_frameNum > 300
+        plotUpdatedOutput5([nanmean(logger.motionCorrection(counter_frameNum-300:counter_frameNum-1,3),1)],...
+            duration_session, frameRate, 'Motion Correction Correlation All', 10, 1)
+    end
+    
+    if show_MC_ref_images
+        if mod(counter_frameNum,1) == 0
+            %         if mod(counter_frameNum,11) == 0
+            plotUpdatedMotionCorrectionImage_singleRegion(baselineStuff.MC.meanImForMC_crop , img_MC_moving_rollingAvg , img_MC_moving_rollingAvg, 'Motion Correction')
+        end
+    end
+    
+    
+end
 %% DATA LOGGING
 
 if ~isnan(counter_frameNum)
@@ -515,12 +574,17 @@ if ~isnan(counter_frameNum)
     logger.motionCorrection(counter_frameNum,1) = xShift;
     logger.motionCorrection(counter_frameNum,2) = yShift;
     logger.motionCorrection(counter_frameNum,3) = MC_corr;
+    logger.motionCorrection(counter_frameNum,4) = source.hSI.hFastZ.currentFastZs{1}.targetPosition;
+    logger.motionCorrection(counter_frameNum,5) = delta_moved;
+    logger.motionCorrection(counter_frameNum,6:10) = frame_corrs; 
+
+%     toc
 end
 
-% %% End Session
-% if counter_frameNum >= duration_session
-%     endSession
-% end
+%% End Session
+if  counter_frameNum == round(duration_session * 0.99)
+    endSession
+end
 
 %% FUNCTIONS
     function updateLoggerTrials_START % calls at beginning of a trial
@@ -561,8 +625,9 @@ end
         ET_timeout = 0;
         CE_timeout = 0;
         counter_timeout = 0;
+        counter_last_z_correction = 0;
         
-        %         counter_frameNum = 0;
+        counter_frameNum = 0;
         CE_buildingUpStats = 1;
         CE_experimentRunning = 1;
         cursor_brain = 0;
@@ -573,13 +638,13 @@ end
         NumOfTimeouts = 0;
         trialNum = 1;
         
-        clear logger
+%         clear logger
         logger.timeSeries = NaN(duration_session,33);
         logger.timers = NaN(duration_session,2);
         logger.decoder = NaN(duration_session,4);
-        logger.motionCorrection = NaN(duration_session,3);
+        logger.motionCorrection = NaN(duration_session, 10);
         logger.trials = NaN(size(trialStuff.condTrials,1), 10);
-        
+
         loggerNames.timeSeries{1} = 'counter_frameNum';
         loggerNames.timeSeries{2} = 'CS_quiescence';
         loggerNames.timeSeries{3} = 'ET_trialStart';
@@ -626,6 +691,13 @@ end
         loggerNames.motionCorrection{1} = 'xShift';
         loggerNames.motionCorrection{2} = 'yShift';
         loggerNames.motionCorrection{3} = 'MC_correlation';
+        loggerNames.motionCorrection{4} = 'current_z_position';
+        loggerNames.motionCorrection{5} = 'deltaMoved';
+        loggerNames.motionCorrection{6} = 'z_correlation_1';
+        loggerNames.motionCorrection{7} = 'z_correlation_2';
+        loggerNames.motionCorrection{8} = 'z_correlation_3';
+        loggerNames.motionCorrection{9} = 'z_correlation_4';
+        loggerNames.motionCorrection{10}= 'z_correlation_5';
         
         loggerNames.trials{1} = 'trialNum_trialStart';
         loggerNames.trials{2} = 'time_now_trialStart';
@@ -637,7 +709,7 @@ end
         loggerNames.trials{8} = 'time_now_trialEnd';
         loggerNames.trials{9} = 'counter_frameNum_trialEnd';
         loggerNames.trials{10} = 'success_outcome';
-        
+
         logger_valsROIs = nan(duration_session , numCells);
         runningVals = nan(numSamples_rollingStats , baselineStuff.ROIs.num_cells);
         running_cursor_raw = nan(numSamples_rollingStats , 1);
@@ -649,97 +721,165 @@ end
         
         counter_runningVals = 1;
         counter_runningCursor = 1;
-        
-        %         saveParams(directory)
+
+        saveParams(directory)
     end
 
-%     function endSession
-%         disp('SESSION OVER')
-%         counter_frameNum = NaN;
-%         CE_experimentRunning = 0;
-%
-%         save([directory , '\logger.mat'], 'logger')
-%         save([directory , '\logger_valsROIs.mat'], 'logger_valsROIs')
-%         saveParams(directory)
-%         disp('=== Loggers and expParams saved ===')
-%
-%         CE_waitForBaseline = 0;
-%         CS_quiescence = 0;
-%         ET_trialStart = 0;
-%         CE_trial = 0;
-%         soundVolume = 0;
-%         counter_trialIdx = 0;
-%         CS_threshold = 0;
-%         ET_rewardToneHold = 0; % reward signals
-%         CE_rewardToneHold = 0;
-%         counter_rewardToneHold = 0;
-%         frequencyOverride = 0;
-%         ET_rewardDelivery = 0;
-%         CE_rewardDelivery = 0;
-%         counter_rewardDelivery = 0;
-%         ET_ITI_successful = 0;
-%         CE_ITI_successful = 0;
-%         counter_ITI_successful = 0;
-%         ET_waitForBaseline = 0;
-%         CE_waitForBaseline = 0;
-%         ET_timeout = 0;
-%         CE_timeout = 0;
-%         counter_timeout = 0;
-%
-%         %         counter_frameNum = 0;
-%         CE_buildingUpStats = 0;
-%         %         CE_experimentRunning = 0;
-%         cursor_output = 0;
-%
-%         %         setSoundVolumeTeensy(0);
-%         source.hSI.task_cursorAmplitude.writeDigitalData(0);
-%         source.hSI.task_goalAmplitude.writeDigitalData(0);
-%         
-%     end
+    function endSession
+        disp('SESSION OVER')
+        counter_frameNum = NaN;
+        CE_experimentRunning = 0;
+        
+        save([directory , '\logger.mat'], 'logger')
+        save([directory , '\logger_valsROIs.mat'], 'logger_valsROIs')
+        saveParams(directory)
+        disp('=== Loggers and expParams saved ===')
+        
+        CE_waitForBaseline = 0;
+        CS_quiescence = 0;
+        ET_trialStart = 0;
+        CE_trial = 0;
+        soundVolume = 0;
+        counter_trialIdx = 0;
+        CS_threshold = 0;
+        ET_rewardToneHold = 0; % reward signals
+        CE_rewardToneHold = 0;
+        counter_rewardToneHold = 0;
+        frequencyOverride = 0;
+        ET_rewardDelivery = 0;
+        CE_rewardDelivery = 0;
+        counter_rewardDelivery = 0;
+        ET_ITI_successful = 0;
+        CE_ITI_successful = 0;
+        counter_ITI_successful = 0;
+        ET_waitForBaseline = 0;
+        CE_waitForBaseline = 0;
+        ET_timeout = 0;
+        CE_timeout = 0;
+        counter_timeout = 0;
+        
+        %         counter_frameNum = 0;
+        CE_buildingUpStats = 0;
+        %         CE_experimentRunning = 0;
+        cursor_output = 0;
+        
+        %         setSoundVolumeTeensy(0);
+        source.hSI.task_cursorAmplitude.writeDigitalData(0);
+        source.hSI.task_goalAmplitude.writeDigitalData(0);
+        
+    end
 
-%     function saveParams(directory)
-%         expParams.frameRate = frameRate;
-%         expParams.duration_session = duration_session;
-%         expParams.duration_trial = duration_trial;
-%         expParams.win_smooth = win_smooth;
-%         %         expParams.F_baseline_prctile = F_baseline_prctile;
-%         expParams.duration_threshold = duration_threshold;
-%         expParams.threshold_value = threshold_value;
-%         expParams.range_cursor = range_cursor;
-%         expParams.range_freqOutput = range_freqOutput;
-%         expParams.voltage_at_threshold = voltage_at_threshold;
-%         expParams.duration_timeout = duration_timeout;
-%         expParams.numCells = numCells;
-%         expParams.directory = directory;
-%         expParams.duration_rollingStats = duration_rollingStats;
-%         expParams.duration_rollingStats = duration_buildingUpStats;
-%         expParams.subSampleFactor_runningVals = subSampleFactor_runningVals;
-%         expParams.threshold_quiescence = threshold_quiescence;
-%         expParams.duration_rewardTone = duration_rewardTone;
-%         expParams.duration_ITI_success = duration_ITI_success;
-%         expParams.duration_rewardDelivery = duration_rewardDelivery;
-%         expParams.reward_duration = reward_duration; % in ms
-%         expParams.reward_delay = reward_delay;
-%         expParams.LED_duration = LED_duration;
-%         expParams.LED_ramp_duration = LED_ramp_duration;
-%         expParams.numFramesToAvgForMotionCorr = numFramesToAvgForMotionCorr;
-%
-%         expParams.image_hash_function = 'hash = sum(sum(image,1).^2)';
-% 
-%         expParams.loggerNames = loggerNames;
-%
-%         expParams.baselineStuff = baselineStuff;
-%
-%         save([directory , '\expParams.mat'], 'expParams')
-%         %         save([directory , '\motionCorrectionRefImages.mat'], 'motionCorrectionRefImages')
-%     end
+    function saveParams(directory)
+        expParams.frameRate = frameRate;
+        expParams.duration_session = duration_session;
+        expParams.duration_trial = duration_trial;
+        expParams.win_smooth = win_smooth;
+        %         expParams.F_baseline_prctile = F_baseline_prctile;
+        expParams.duration_threshold = duration_threshold;
+        expParams.threshold_value = threshold_value;
+        expParams.range_cursor = range_cursor;
+        expParams.range_freqOutput = range_freqOutput;
+        expParams.voltage_at_threshold = voltage_at_threshold;
+        expParams.duration_timeout = duration_timeout;
+        expParams.numCells = numCells;
+        expParams.directory = directory;
+        expParams.duration_rollingStats = duration_rollingStats;
+        expParams.duration_rollingStats = duration_buildingUpStats;
+        expParams.subSampleFactor_runningVals = subSampleFactor_runningVals;
+        expParams.threshold_quiescence = threshold_quiescence;
+        expParams.duration_rewardTone = duration_rewardTone;
+        expParams.duration_ITI_success = duration_ITI_success;
+        expParams.duration_rewardDelivery = duration_rewardDelivery;
+        expParams.reward_duration = reward_duration; % in ms
+        expParams.reward_delay = reward_delay;
+        expParams.LED_duration = LED_duration;
+        expParams.LED_ramp_duration = LED_ramp_duration;
+        expParams.numFramesToAvgForMotionCorr = numFramesToAvgForMotionCorr;
+        
+        expParams.image_hash_function = 'hash = sum(sum(image,1).^2)';
+        
+        expParams.loggerNames = loggerNames;
+        
+        expParams.baselineStuff = baselineStuff;
+        
+        save([directory , '\expParams.mat'], 'expParams')
+        %         save([directory , '\motionCorrectionRefImages.mat'], 'motionCorrectionRefImages')
+    end
 
-if counter_frameNum == last_frameNum
-    logger_output = logger;
-    logger_valsROIs_output = logger_valsROIs;
-else
-    logger_output = [];
-    logger_valsROIs_output = [];
-end
-% toc
+    function [refIm_crop_conjFFT_shift, refIm_crop, indRange_y_crop, indRange_x_crop] = make_fft_for_MC(refIm)
+        refIm = single(refIm);
+        % crop_factor = 5;
+        crop_size = 256; % MAKE A POWER OF 2! eg 32,64,128,256,512
+
+        length_x = size(refIm,2);
+        length_y = size(refIm,1);
+        middle_x = size(refIm,2)/2;
+        middle_y = size(refIm,1)/2;
+
+        % indRange_y_crop = [round(middle_y - length_y/crop_factor) , round(middle_y + length_y/crop_factor) ];
+        % indRange_x_crop = [round(middle_x - length_y/crop_factor) , round(middle_x + length_y/crop_factor) ];
+
+        indRange_y_crop = [round(middle_y - (crop_size/2-1)) , round(middle_y + (crop_size/2)) ];
+        indRange_x_crop = [round(middle_x - (crop_size/2-1)) , round(middle_x + (crop_size/2)) ];
+    
+        refIm_crop = refIm(indRange_y_crop(1) : indRange_y_crop(2) , indRange_x_crop(1) : indRange_x_crop(2)) ;
+
+        refIm_crop_conjFFT = conj(fft2(refIm_crop));
+        refIm_crop_conjFFT_shift = fftshift(refIm_crop_conjFFT);
+
+        % size(refIm_crop_conjFFT_shift,1);
+        % if mod(size(refIm_crop_conjFFT_shift,1) , 2) == 0
+        %     disp('RH WARNING: y length of refIm_crop_conjFFT_shift is even. Something is very wrong')
+        % end
+        % if mod(size(refIm_crop_conjFFT_shift,2) , 2) == 0
+        %     disp('RH WARNING: x length of refIm_crop_conjFFT_shift is even. Something is very wrong')
+        % end
+
+%         refIm_crop_conjFFT_shift_centerIdx = ceil(size(refIm_crop_conjFFT_shift)/2);
+    end
+
+    function [delta,frame_corrs] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner)
+%         image_toUse = prctile(img_MC_moving_rolling_z, zCorrPtile, 3);
+        image_toUse = mean(img_MC_moving_rolling_z, 3);
+%         figure; imagesc(image_toUse)
+%         size(img_MC_moving_rolling_z)
+%         figure; imagesc(squeeze(img_MC_moving_rolling_z(:,:,1)))
+
+        [delta,frame_corrs] = zCorrection(image_toUse, registrationImage, ...
+        refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner);
+        
+    end
+
+    function currentPosition = moveFastZ(source, evt, delta, position, range_position)
+        
+        if ~exist('range_position')
+            range_position = [0, 200];
+        end
+        
+        fastZDevice = source.hSI.hFastZ.currentFastZs{1};
+        %Select the FastZ device (you likely have just one, so index at 1)
+
+        currentPosition = fastZDevice.targetPosition;
+        
+        if ~exist('position')
+            newPosition = currentPosition + delta;
+        elseif isempty(position)
+            newPosition = currentPosition + delta;
+        else
+            newPosition = position;
+        end
+        % scalar finite number indicating depth within the lower and upper travel bounds set by the user.
+        
+        if range_position(1) > newPosition | range_position(2) < newPosition
+            error('RH ERROR: newPosition if out of range')
+        end
+            
+%         force = true;
+        % do the move even if it is a grab or loop acquisition. Don't try using this with a stack acquisition.
+
+    %     source.hSI.hFastZ.move(fastZDevice, position,  force);
+    
+        source.hSI.hFastZ.move(fastZDevice, newPosition);
+
+    end
 end

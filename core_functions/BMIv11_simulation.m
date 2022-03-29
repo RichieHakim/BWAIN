@@ -1,5 +1,5 @@
 function [logger_output , logger_valsROIs_output  , NumOfRewardsAcquired] =...
-    BMIv11_simulation_imageInput(vals_neurons, counter_frameNum , baselineStuff , trialStuff,  last_frameNum , threshold_value , threshold_quiescence)
+    BMIv11_simulation(vals_neurons, counter_frameNum , baselineStuff , trialStuff,  last_frameNum , threshold_value , threshold_quiescence, num_frames_total)
 %% Variable stuff
 tic
 global counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneHold...
@@ -34,10 +34,11 @@ global counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneH
 % ROI vars
 frameRate                   = 30;
 duration_plotting           = 30 * frameRate; % ADJUSTABLE: change number value (in seconds). Duration of x axis in plots
-duration_session            = frameRate * 60 * 60; % ADJUSTABLE: change number value (in seconds/minutes)
+duration_session            = num_frames_total; % ADJUSTABLE: change number value (in seconds/minutes)
 win_smooth                  = 5; % smoothing window (in frames)
 % F_baseline_prctile          = 30; % percentile to define as F_baseline of cells
 % show_MC_ref_images          = 0;
+
 
 numFramesToAvgForMotionCorr = 10;
 
@@ -65,7 +66,7 @@ duration_trial          = 20;
 duration_timeout        = 4;
 duration_threshold      = 0.066;
 duration_rewardTone     = 1.5; % currently unused
-duration_ITI_success    = 1;
+duration_ITI_success    = 3;
 duration_rewardDelivery = 0.20;
 
 duration_rollingStats       = round(frameRate * 60 * 15);
@@ -81,6 +82,7 @@ duration_buildingUpStats    = round(frameRate * 60 * 1);
 if counter_frameNum == 1
     disp('hi. NEW SESSION STARTED')
     startSession
+    disp(size(logger.timeSeries))
 end
 % ======== COMMENT THIS IN/OUT TO START SESSION =======
 % startSession
@@ -563,7 +565,6 @@ end
         CE_ITI_successful = 0;
         counter_ITI_successful = 0;
         ET_waitForBaseline = 0;
-        CE_waitForBaseline = 0;
         ET_timeout = 0;
         CE_timeout = 0;
         counter_timeout = 0;
@@ -581,6 +582,7 @@ end
         
         clear logger
         logger.timeSeries = NaN(duration_session,33);
+        disp(size(logger.timeSeries))
         logger.timers = NaN(duration_session,2);
         logger.decoder = NaN(duration_session,4);
         logger.motionCorrection = NaN(duration_session,3);

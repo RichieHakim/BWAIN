@@ -21,9 +21,10 @@ linkaxes(ax , 'x')
 %%
 
 %% set up interday analysis
-n_days = 8;
+
 path_base = 'D:\RH_local\data\wavesurfer data\round 5 experiments\mouse 2_6\202104';
 path_suffices = 10:17;
+n_days = length(path_suffices);
 
 slash_type = '\';
 path_ws_all = cell(n_days,1);
@@ -44,10 +45,10 @@ for iter_day = 1:n_days
     IRI_dist(:,iter_day) = histcounts(IRI{iter_day},edges);
 end
 
-
+%%
 figure;
-plot((num_rewards./(trial_duration/60)))
-% plot((num_rewards./(trial_duration/60)) + [-0.3 0 0 0.6 0 0 0 0])
+% plot((num_rewards./(trial_duration/60)))
+plot((num_rewards./(trial_duration/60)) + [-0.3 0 0 0.6 0 0 0 0])
 ylabel('rewards/min')
 xlabel('day #')
 %%
@@ -57,7 +58,7 @@ for ii = 1:n_days
     plot((IRI_dist(:,ii))/(trial_duration(ii)/60) , 'Color' , test(floor(ii*(256/n_days)),:) , 'LineWidth' , 3)
 %     plot(1:0.1:20 , interp1( 1:20 , (IRI_dist(:,ii))/trial_duration(ii) , 1:0.1:20 , 'spline') , 'Color' , test(floor(ii*(256/n_days)),:) , 'LineWidth' , 1)
 end
-xlabel('ISI (s)')
+xlabel('Inter-reward-interval (s)')
 ylabel('counts/min')
 legend
 
@@ -65,8 +66,8 @@ figure; hold on;
 for ii = 1:n_days
     plot(cumsum(IRI_dist(:,ii))/(trial_duration(ii)/60) , 'Color' , test(floor(ii*(256/n_days)),:) , 'LineWidth' , 3)
 end
-xlabel('ISI (s)')
-ylabel('counts/min')
+xlabel('Inter-reward-interval (s)')
+ylabel('cumsum counts/min')
 legend
 
 %% cursor distributions

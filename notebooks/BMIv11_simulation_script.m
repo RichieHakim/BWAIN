@@ -1,14 +1,14 @@
 %% Run simulation
 
 % import Fall.mat file
-dir_Fall = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210409\baseline\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220215\baseline\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 
 path_Fall = [dir_Fall , '\' , fileName_Fall];
 Fall = load(path_Fall);
 %% Import weights for today
 
-dir_weightsDay0 = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210410\analysis_lastNight';
+dir_weightsDay0 = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220215\analysis_day0';
 fileName_weightsDay0 = 'weights_day0.mat';
 
 path_weightsDay0 = [dir_weightsDay0 , '\' , fileName_weightsDay0];
@@ -18,17 +18,17 @@ clear dir_Fall fileName_Fall path_Fall ...
     dir_weightsDay0 fileName_weightsDay0 path_weightsDay0
 
 %% Import trialStuff for today
-dir_trialStuff = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210410\analysis_lastNight\simulation';
+dir_trialStuff = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220215\analysis_day0';
 fileName_trialStuff = 'trialStuff.mat';
 
 path_trialStuff = [dir_trialStuff , '\' , fileName_trialStuff];
 load(path_trialStuff);
 
 %% Import baselineStuff for today
-dir_trialStuff = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210410\analysis_lastNight\simulation';
+dir_baselineStuff = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210410_test\baseline';
 fileName_baselineStuff = 'baselineStuff.mat';
 
-path_baselineStuff = [dir_trialStuff , '\' , fileName_baselineStuff];
+path_baselineStuff = [dir_baselineStuff , '\' , fileName_baselineStuff];
 load(path_baselineStuff);
 
 %% do the damn thing
@@ -36,7 +36,7 @@ load(path_baselineStuff);
 % extraction or just use F from s2p
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210409\baseline';
+directory_movie = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210410_test\baseline';
 fileName_movie = 'file';
 
 frames_totalExpected = 108000;
@@ -155,16 +155,17 @@ for ii = 1:num_frames
     %     tic
     %     ii
     if ii<num_frames
-%         BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence);
+        BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence);
 %         BMIv11_simulation_imageInput(movie_chunk{ceil(ii/frames_perFile)}(:,:,mod(ii-1,frames_perFile)+1) , ii , baselineStuff, trialStuff, num_frames , threshold_reward , threshold_quiescence);
-        BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, num_frames , threshold_reward , threshold_quiescence);
+%         BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, num_frames , threshold_reward , threshold_quiescence);
         
     else
 %         [logger , logger_valsROIs2 , numRewardsAcquired] = BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence);
         [logger , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, num_frames , threshold_reward , threshold_quiescence);
     end
     %     toc
-    if mod(ii,10000)==0 | ii==1 | ii==2
+    if mod(ii,1000)==0 | ii==1 | ii==2
+%     if 1
         fprintf('%s\n' , [num2str(ii) , '/' , num2str(num_frames)])
     end
 end

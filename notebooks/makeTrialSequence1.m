@@ -10,7 +10,7 @@ numConditions = length(condition_names);
 %% Make fake decoder data for each trial
 
 % Import a logger to steal decoder output for fake feedback decoder
-path_fakeData = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210416\logger.mat';
+path_fakeData = 'D:\RH_local\data\round5_mouse2_6_20210416_logger.mat';
 load(path_fakeData)
 
 sample_rate = 30; % in Hz, rough imaging speed
@@ -113,7 +113,7 @@ cond_bool = [[1,1,1] ;...
     [1,1,0]];
 numConditions = size(cond_bool,1);
 
-cond_all = [ones(75,1)*1 ; ones(75,1)*2 ; ones(350,1)*1];
+cond_all = [ones(75,1)*1 ; ones(75,1)*2 ; ones(350,1)*1]; % index to use for each trial
 
 clear conditions_trials
 for ii = 1:numConditions
@@ -186,7 +186,7 @@ cond_bool = [[1,1,1] ;...
              [0,1,0]];
 numConditions = size(cond_bool,1);
 
-prob_cond = [0.9;0.05;0.05];
+prob_cond = [0.8;0.1;0.1];
 
 hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
 
@@ -223,8 +223,84 @@ trialStuff.condTrials = cond_all;
 trialStuff.condNames = condition_names;
 trialStuff.condProbs = prob_cond;
 trialStuff.homogeneousBlockSize = hbs;
+
+%% Experiment: dissociate sensory
+% - This format makes a matrix where each row is a trial, and each column is
+% a condition (ie cursorOn, feedbackLinked, rewardOn)
+% - I added the constraint that homogenizes the distribution of conditions
+experiment_name = 'dissociate_sensory';
+cond_bool = [[1,1,1] ;...
+             [1,0,1] ;...
+             [0,1,1]];
+numConditions = size(cond_bool,1);
+
+prob_cond = [0.8;0.1;0.1];
+
+hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
+
+criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
+
+cond_all = zeros(maxNumTrials,1);
+tmp_conds = [];
+for jj = 1:numConditions
+    tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
+end
+for ii= 0:(maxNumTrials/hbs)-1
+    criterion_output = zeros(numConditions,1);
+    while sum(criterion_output) < 3
+        cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
+        for jj = 1:numConditions
+            criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+        end
+    end
+end
+figure; plot(cond_all)
+
+clear conditions_trials
+for ii = 1:numConditions
+    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+end
+
+figure; imagesc(conditions_trials)
+figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
+
+trialStuff.expType = experiment_name;
+trialStuff.condTrialBool = conditions_trials;
+trialStuff.condBool = cond_bool;
+trialStuff.condTrials = cond_all;
+trialStuff.condNames = condition_names;
+trialStuff.condProbs = prob_cond;
+trialStuff.homogeneousBlockSize = hbs;
+
+
+
+%% Experiment: Random Playback
+% - This format makes a matrix where each row is a trial, and each column is
+% a condition (ie cursorOn, feedbackLinked, rewardOn)
+% - I added the constraint that homogenizes the distribution of conditions
+experiment_name = 'random_playback';
+cond_bool = [[1,0,1]];
+numConditions = size(cond_bool,1);
+
+cond_all = [ones(500,1)*1];
+
+clear conditions_trials
+for ii = 1:numConditions
+    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+end
+
+figure; imagesc(conditions_trials)
+
+trialStuff.expType = experiment_name;
+trialStuff.condTrialBool = conditions_trials;
+trialStuff.condBool = cond_bool;
+trialStuff.condTrials = cond_all;
+trialStuff.condNames = condition_names;
+trialStuff.condProbs = 'N/A';
+trialStuff.homogeneousBlockSize = 'N/A';
+
 %%
-dir = 'D:\RH_local\data\scanimage data\round 5 experiments\mouse 2_6\20210417\analysis_lastNight';
+dir = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220329\analysis_lastNight';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 

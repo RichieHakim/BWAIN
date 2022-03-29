@@ -3,11 +3,11 @@ persistent x
 % clear x
 
 % reward_rate = 0.004;
-reward_rate = 0.0010;
+reward_rate = 0.006;
 % reward_rate = 0.04;
 hysteresis_weight = 0.07;
-amplitude_nonlinearity = 1.8;
-noise_weight = 4;
+amplitude_nonlinearity = 1.7;
+noise_weight = 1;
 
 length_kernel = 100;
 t_kernel = [1:length_kernel];
@@ -31,7 +31,7 @@ for jj = 1:4
     end
     
     hyst_vector = fliplr(100000.^(1-t_history./length_history) / 100000.^(1));
-    x{jj}(end+1) = (rand(1) > (1-(reward_rate + (sum(x{jj}.*hyst_vector') * hysteresis_weight)))) *abs(randn(1)^amplitude_nonlinearity);
+    x{jj}(end+1) = (rand(1) > (1-(reward_rate + (sum(x{jj}.*hyst_vector') * hysteresis_weight))))   * abs(randn(1)^amplitude_nonlinearity);
     
     x_conv = conv(x{jj}, t_alpha);
     

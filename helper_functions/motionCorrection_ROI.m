@@ -1,4 +1,8 @@
-function [xShift , yShift , cxx , cyy] = motionCorrection_ROI(movingIm , refIm, refIm_conjFFT_padded)
+function [xShift , yShift , cxx , cyy] = motionCorrection_ROI(movingIm , refIm, refIm_conjFFT_padded, maskPref, borderOuter, borderInner)
+if ~exist('maskPref')
+    maskPref = 0;
+end
+
 % tic
 crop_factor = 3;
 
@@ -7,6 +11,14 @@ if ~isa(movingIm,'single')
 end
 
 if ~exist('refIm_conjFFT_padded')
+    run_fft_ref = 1;
+elseif isempty(refIm_conjFFT_padded)
+    run_fft_ref = 1;
+else
+    run_fft_ref = 0;
+end
+
+if run_fft_ref
     if isa(refIm,'single')
         refIm = single(refIm);
     end
@@ -31,14 +43,21 @@ movingIm_FFT = fft2(movingIm);
 % refIm_conjFFT_padded = gpuArray(refIm_conjFFT_padded);
 
 movingIm_FFT_shift = fftshift(movingIm_FFT);
-movingIm_FFT_padded = zeros(size(movingIm_FFT_shift,1) , size(movingIm_FFT_shift,2));
-movingIm_FFT_padded(round(size(movingIm_FFT_shift,1)/2 - size(movingIm_FFT_shift,1)/crop_factor : ...
-    size(movingIm_FFT_shift,1)/2 + size(movingIm_FFT_shift,1)/crop_factor)...
-    , round(size(movingIm_FFT_shift,2)/2 - size(movingIm_FFT_shift,2)/crop_factor : ...
-    size(movingIm_FFT_shift,2)/2 + size(movingIm_FFT_shift,2)/crop_factor)) = 1;
-% figure; imagesc(abs(movingIm_FFT_padded))
-movingIm_FFT_padded = bsxfun(@times, movingIm_FFT_padded, movingIm_FFT_shift);
-% figure; imagesc(log(abs(movingIm_FFT_padded)))
+
+% movingIm_FFT_padded = zeros(size(movingIm_FFT_shift,1) , size(movingIm_FFT_shift,2));
+% movingIm_FFT_padded(round(size(movingIm_FFT_shift,1)/2 - size(movingIm_FFT_shift,1)/crop_factor : ...
+%     size(movingIm_FFT_shift,1)/2 + size(movingIm_FFT_shift,1)/crop_factor)...
+%     , round(size(movingIm_FFT_shift,2)/2 - size(movingIm_FFT_shift,2)/crop_factor : ...
+%     size(movingIm_FFT_shift,2)/2 + size(movingIm_FFT_shift,2)/crop_factor)) = 1;
+% % figure; imagesc(abs(movingIm_FFT_padded))
+% movingIm_FFT_padded = bsxfun(@times, movingIm_FFT_padded, movingIm_FFT_shift);
+
+
+if maskPref
+    movingIm_FFT_toUse = maskImage(movingIm_FFT_shift, borderOuter, borderInner);
+else
+    movingIm_FFT_toUse = movingIm_FFT_shift;
+end
 
 % size(refIm_conjFFT)
 % size(movingIm_FFT)
@@ -46,7 +65,7 @@ movingIm_FFT_padded = bsxfun(@times, movingIm_FFT_padded, movingIm_FFT_shift);
 % figure; imagesc(abs(movingIm_FFT_padded))
 % figure; imagesc(abs(refIm_conjFFT_padded))
 % spectralCorr = bsxfun(@times,refIm_conjFFT,movingIm_FFT);
-spectralCorr = bsxfun(@times,refIm_conjFFT_padded, movingIm_FFT_padded);
+spectralCorr = bsxfun(@times,refIm_conjFFT_padded, movingIm_FFT_toUse);
 phaseCorr = spectralCorr./(abs(spectralCorr)+0.01); % phase correlation, add eps to avoid division by zero
 Corr = ifft2(phaseCorr,'symmetric'); % cc is a 3D array. ifft2 takes the 2-D fourier transform for each slice
 % Corr = ifft2(phaseCorr,'nonsymmetric'); % cc is a 3D array. ifft2 takes the 2-D fourier transform for each slice

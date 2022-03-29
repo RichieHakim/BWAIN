@@ -1,4 +1,8 @@
 %% BMI Ensemble selection script
+% compared to the non 'day0' code. This script doesnt require you to have
+% the assignments of the neuron identities tracing back to the original
+% masks.
+
 % based on program_EnsembleSelection9_manyCells
 
 % directory_refImOld = 'D:\RH_local\data\scanimage data\round 4 experiments\mouse 6.28\20201010';
@@ -7,26 +11,20 @@
 % % refImOld variable should be named: 'refImOld'
 
 % Use day N-1 or day 0
-dir_Fall = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220223\exp\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322\baseline\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 % Fall variable should be named: 'Fall' (from S2p; contains stat file)
 load([dir_Fall '\' fileName_Fall]);
 
 % Use day N (today)
-directory_today = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\baseline';
-fileName_movie = 'baseline';
-
-% Analysis lastNight dir
-directory_analysisLastNight = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\analysis_lastNight';
-%% load in alignment_indices
-alignment_indices = load([directory_analysisLastNight, '\', 'alignment_indices.mat']).alignment_indices;
-
+directory_today = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322\baseline';
+fileName_movie = 'file_000';
 %%
-path_spatialFootprints = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\analysis_lastNight\spatial_footprints_aligned.h5';
+% path_spatialFootprints = 'D:\\RH_local\\data\\scanimage data\\round 5 experiments\\mouse 2_6\\20210410_test\\analysis_lastNight\\spatial_footprints_aligned.h5';
 
 %%
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220215\analysis_day0';
+directory_weights = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322\analysis_day0';
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
 %% Import and downsample movie
@@ -261,44 +259,43 @@ refImOld = ops.meanImg; % make the reference image the Suite2p output reference 
 % cell_size_max = 165; % in pixels
 % 
 % numCells = length(cellNumsToUse); % in 1-indexed (matlab) indices
-
 %% cellNumsToUse + cellWeightings
 cellNumsToUse   = find(iscell_custom);
 % cellNumsToUse   = 1:100;
+% cellWeightings  = weights(iscell_custom);
 cellWeightings  = weights;
 % cellWeightings  = rand(length(cellNumsToUse),1);
 
+% numCells = length(cellNumsToUse); % in 1-indexed (matlab) indices
+numCells = length(cellWeightings); % in 1-indexed (matlab) indices
 
-numCells = length(cellNumsToUse); % in 1-indexed (matlab) indices
-
-cell_size_max = 180; % in pixels
-
-%% make weighted footprints
-% spatial_footprints = zeros(numCells , frame_height , frame_width);
-% spatial_footprints_weighted = zeros(numCells , frame_height , frame_width);
-% for ii = 1:length(cellNumsToUse)
-%     %     spatial_footprints(ii,:,:) = zeros(size(movie_all,1) , size(movie_all,2));
-%     for jj = 1:stat{cellNumsToUse(ii)}.npix
-%         spatial_footprints(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj);
-%         spatial_footprints_weighted(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj) .* cellWeightings(ii);
-%     end
-% end
-% 
-% figure;
-% imshowpair(squeeze(max(spatial_footprints , [],1))  ,  ...
-%     squeeze(max(spatial_footprints_weighted , [],1)), 'montage')
+cell_size_max = 230; % in pixels
 
 %% make weighted footprints
-spatial_footprints = permute(h5read(path_spatialFootprints, '/spatial_footprints'), [3,2,1]);
-
-
-dims_sf = size(spatial_footprints);
-dims_sf_frame = dims_sf(2:end);
-spatial_footprints_weighted = spatial_footprints .* repmat(reshape(cellWeightings, [size(cellWeightings,2), 1,1]), [1, dims_sf_frame]);
+spatial_footprints = zeros(numCells , frame_height , frame_width);
+spatial_footprints_weighted = zeros(numCells , frame_height , frame_width);
+for ii = 1:length(cellNumsToUse)
+    %     spatial_footprints(ii,:,:) = zeros(size(movie_all,1) , size(movie_all,2));
+    for jj = 1:stat{cellNumsToUse(ii)}.npix
+        spatial_footprints(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj);
+        spatial_footprints_weighted(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj) .* cellWeightings(ii);
+    end
+end
 
 figure;
-imshowpair(squeeze(sum(spatial_footprints, 1))  ,  ...
-    squeeze(sum(spatial_footprints_weighted, 1)), 'montage')
+imshowpair(squeeze(max(spatial_footprints , [],1))  ,  ...
+    squeeze(max(spatial_footprints_weighted , [],1)), 'montage')
+
+%% make weighted footprints
+% spatial_footprints = permute(h5read(path_spatialFootprints, '/spatial_footprints'), [3,2,1]);
+% 
+% dims_sf = size(spatial_footprints);
+% dims_sf_frame = dims_sf(2:end);
+% spatial_footprints_weighted = spatial_footprints .* repmat(reshape(cellWeightings, [size(cellWeightings,2), 1,1]), [1, dims_sf_frame]);
+% 
+% figure;
+% imshowpair(squeeze(sum(spatial_footprints, 1))  ,  ...
+%     squeeze(sum(spatial_footprints_weighted, 1)), 'montage')
 %%
 % 
 % spatial_footprints = zeros(numCells , frame_height , frame_width);
@@ -424,35 +421,17 @@ imshowpair(real(spatial_footprints_all .^0.3) , real(spatial_footprints_warped_w
 figure;
 imshow(spatial_footprints_warped_weighted_all ,[])
 
- %% Transofrm coordinate indices
-% for ii = 1:numel(cellNumsToUse)
-%     idxBounds_ROI{ii}(1,1) = min(stat{cellNumsToUse(ii)}.xpix)+1; % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
-%     idxBounds_ROI{ii}(2,1) = max(stat{cellNumsToUse(ii)}.xpix)+1;
-%     idxBounds_ROI{ii}(1,2) = min(stat{cellNumsToUse(ii)}.ypix)+1;
-%     idxBounds_ROI{ii}(2,2) = max(stat{cellNumsToUse(ii)}.ypix)+1;
-%     
-%     mask_center{ii} = [ mean([idxBounds_ROI{ii}(1,1) , idxBounds_ROI{ii}(2,1)])  ,  mean([idxBounds_ROI{ii}(1,2) , idxBounds_ROI{ii}(2,2)]) ];
-%     
-%     spatial_footprints_cropped{ii} = squeeze(spatial_footprints(ii , idxBounds_ROI{ii}(1,2):idxBounds_ROI{ii}(2,2) , idxBounds_ROI{ii}(1,1):idxBounds_ROI{ii}(2,1)));
-% end
-% %% Transofrm coordinate indices
-% % cellNumsToUse_aligned_to_day0 = index_with_nans(double(idx2bool(cellNumsToUse, length(alignment_indices))), alignment_indices);
-% % %%
-% stat_toUse = index_with_nans(stat, alignment_indices)
-% %%
-% for ii = 1:numel(cellNumsToUse)
-%     if ~isnan(stat_toUse{cellNumsToUse(ii)})
-%     
-%         idxBounds_ROI{ii}(1,1) = min(stat_toUse{cellNumsToUse(ii)}.xpix)+1; % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
-%         idxBounds_ROI{ii}(2,1) = max(stat_toUse{cellNumsToUse(ii)}.xpix)+1;
-%         idxBounds_ROI{ii}(1,2) = min(stat_toUse{cellNumsToUse(ii)}.ypix)+1;
-%         idxBounds_ROI{ii}(2,2) = max(stat_toUse{cellNumsToUse(ii)}.ypix)+1;
-% 
-%         mask_center{ii} = [ mean([idxBounds_ROI{ii}(1,1) , idxBounds_ROI{ii}(2,1)])  ,  mean([idxBounds_ROI{ii}(1,2) , idxBounds_ROI{ii}(2,2)]) ];
-% 
-%         spatial_footprints_cropped{ii} = squeeze(spatial_footprints(ii , idxBounds_ROI{ii}(1,2):idxBounds_ROI{ii}(2,2) , idxBounds_ROI{ii}(1,1):idxBounds_ROI{ii}(2,1)));
-%     spatial_footprints_cropped{ii} = squeeze(spatial_footprints(ii , idxBounds_ROI{ii}(1,2):idxBounds_ROI{ii}(2,2) , idxBounds_ROI{ii}(1,1):idxBounds_ROI{ii}(2,1)));
-% end
+%% Transofrm coordinate indices
+for ii = 1:numel(cellNumsToUse)
+    idxBounds_ROI{ii}(1,1) = min(stat{cellNumsToUse(ii)}.xpix)+1; % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
+    idxBounds_ROI{ii}(2,1) = max(stat{cellNumsToUse(ii)}.xpix)+1;
+    idxBounds_ROI{ii}(1,2) = min(stat{cellNumsToUse(ii)}.ypix)+1;
+    idxBounds_ROI{ii}(2,2) = max(stat{cellNumsToUse(ii)}.ypix)+1;
+    
+    mask_center{ii} = [ mean([idxBounds_ROI{ii}(1,1) , idxBounds_ROI{ii}(2,1)])  ,  mean([idxBounds_ROI{ii}(1,2) , idxBounds_ROI{ii}(2,2)]) ];
+    
+    spatial_footprints_cropped{ii} = squeeze(spatial_footprints(ii , idxBounds_ROI{ii}(1,2):idxBounds_ROI{ii}(2,2) , idxBounds_ROI{ii}(1,1):idxBounds_ROI{ii}(2,1)));
+end
 
 %%
 refIm = meanIm;
@@ -498,9 +477,8 @@ imagesc(log(abs(refIm_crop_conjFFT_shift)))
 %% IMPORTANT CHECK
 % make sure these are aligned!!!!!
 
-figure; imagesc(spatial_footprints_warped_weighted_all)
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^1  )
-figure; imshowpair(meanIm , spatial_footprints_warped_all*0)
+figure; imshowpair(meanIm , spatial_footprints_warped_all.^0.3)
 
 %%
 clear baselineStuff
@@ -650,14 +628,11 @@ baselineStuff.ROIs.cellWeightings_tall_warped = cellWeightings_tall_warped;
 
 %%
 baselineStuff.framesForMeanImForMC = [];
-path_save = [directory_today, '\baselineStuff'];
+path_save = [directory_weights, '\baselineStuff_day0'];
 save(path_save, 'baselineStuff','-v7.3')
 disp(['Saved baselineStuff to:  ' ,path_save]) 
 % save(['F:\RH_Local\Rich data\scanimage data\mouse 1.31\baselineStuff'], 'baselineStuff')
 % save([directory, '\motionCorrectionRefImages'], 'motionCorrectionRefImages')
-
-%%
-% test = idx2bool([1,4,5], 10)
 %% FUNCTIONS
 function tmp_tallStuff = pad_or_crop_tmp_tallStuff(tmp_tallStuff , cell_size_max)
 if size(tmp_tallStuff,1) > cell_size_max
@@ -666,17 +641,4 @@ end
 if size(tmp_tallStuff,1) < cell_size_max
     tmp_tallStuff = cat(1 , tmp_tallStuff , nan(cell_size_max - size(tmp_tallStuff,1) , size(tmp_tallStuff,2)));
 end
-end
-%% test idx_with_nans
-function [values] = index_with_nans(values, indices)
-    values = cat(2, [NaN], values);
-    indices = indices + 1;
-    indices(isnan(indices)) = 1;
-    
-    values = values(int64(indices));
-end
-%% idx2bool
-function [bool] = idx2bool(idx, length)
-    bool = zeros(1,length, 'int64');
-    bool(idx) = 1;
 end
