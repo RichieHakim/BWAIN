@@ -346,7 +346,7 @@ end
         counter_runningVals = 1;
         counter_runningCursor = 1;
 
-        saveParams(directory)
+%         saveParams(directory)
     end
 
 

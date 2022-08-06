@@ -10,7 +10,7 @@ numConditions = length(condition_names);
 %% Make fake decoder data for each trial
 
 % Import a logger to steal decoder output for fake feedback decoder
-path_fakeData = 'D:\RH_local\data\round5_mouse2_6_20210416_logger.mat';
+path_fakeData = 'D:\RH_local\fake_data_for_trialStuff\round5_mouse2_6_20210416_logger.mat';
 load(path_fakeData)
 
 sample_rate = 30; % in Hz, rough imaging speed
@@ -20,8 +20,10 @@ maxTrialDuration = 60 * Fs; % Make this longer than the actual trial duration
 fakeDecoderData = logger.decoder(:,1);
 
 % Scale to get a set percentage of threshold hits
-threshold = 1.35;
+threshold = 0.8;
 goal_threshAchieved = 0.3; % goal of what fraction of fake cursor trials reach threshold
+
+%%
 
 learning_rate = 0.01;
 
@@ -300,7 +302,7 @@ trialStuff.condProbs = 'N/A';
 trialStuff.homogeneousBlockSize = 'N/A';
 
 %%
-dir = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220329\analysis_lastNight';
+dir = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 

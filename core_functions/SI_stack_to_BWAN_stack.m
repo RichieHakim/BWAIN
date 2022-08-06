@@ -1,10 +1,10 @@
-path_stack = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\zstack\file_00003_00001.tif';
-path_save = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\zstack\stack.mat';
+path_stack = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806\zstack\stack_00002_00001.tif';
+path_save = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806\zstack\stack.mat';
 
 num_frames_per_slice = 60;
 num_slices = 5;
 num_volumes = 10;
-step_size_um = 3;
+step_size_um = 5;
 centered = 1;
 
 frames_to_discard_per_slice = 30; % discards this many frames from beginning due to jitter from piezo

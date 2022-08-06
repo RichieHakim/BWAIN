@@ -3,10 +3,10 @@ function voltage_cursorCurrentPos =...
 %% Variable stuff
 tic
 global counter_frameNum counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneHold...
-    counter_rewardDelivery counter_ITI_successful...
+    counter_rewardDelivery counter_ITI_withZ...
     CE_buildingUpStats CE_experimentRunning CE_waitForBaseline CE_trial CE_timeout CE_rewardToneHold...
-    CE_rewardDelivery CE_ITI_successful...
-    ET_waitForBaseline ET_trialStart ET_timeout ET_rewardToneHold ET_rewardDelivery ET_ITI_successful...
+    CE_rewardDelivery CE_ITI_withZ...
+    ET_waitForBaseline ET_trialStart ET_timeout ET_rewardToneHold ET_rewardDelivery ET_ITI_withZ...
     frequencyOverride...
     NumOfRewardsAcquired NumOfTimeouts trialNum soundVolume...
     img_MC_moving img_MC_moving_rolling...
@@ -23,14 +23,14 @@ currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-directory = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322';
-directory_zstack = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\zstack';
+directory = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806';
+directory_zstack = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806\zstack';
 maskPref = 1;
 borderOuter = 20;
 borderInner = 10;
 
 if ~isstruct(trialStuff)
-    path_trialStuff = [directory , '\analysis_day0\trialStuff.mat'];
+    path_trialStuff = [directory , '\trialStuff.mat'];
     load(path_trialStuff);
     disp(['LOADED trialStuff from:  ' , path_trialStuff])
 end
@@ -71,10 +71,10 @@ win_smooth                  = 4; % smoothing window (in frames)
 % F_baseline_prctile          = 30; % percentile to define as F_baseline of cells
 show_MC_ref_images          = 0;
 
-numFramesToAvgForMotionCorr = 10;
+numFramesToAvgForMotionCorr = 20;
 % numFramesToMedForZCorr      = 30;
 % zCorrFrameInterval          = 30; 
-numFramesToMedForZCorr      = 30*3;
+numFramesToMedForZCorr      = 30*4;
 zCorrFrameInterval          = 15; 
 %zCorrPtile                  = 10;
 interval_z_correction       = 20*frameRate;
@@ -189,10 +189,10 @@ MC_corr = max(cxx);
 % img_ROI_corrected{ii} = currentImage((baselineStuff.idxBounds_ROI{ii}(1,2):baselineStuff.idxBounds_ROI{ii}(2,2)) +round(yShift(ii)) ,...
 %     (baselineStuff.idxBounds_ROI{ii}(1,1):baselineStuff.idxBounds_ROI{ii}(2,1)) +round(xShift(ii))); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
 
-if abs(xShift) >80
+if abs(xShift) >6
     xShift = 0;
 end
-if abs(yShift) >80
+if abs(yShift) >6
     yShift = 0;
 end
 
@@ -399,7 +399,7 @@ if CE_experimentRunning
     % END TIMEOUT
     if CE_timeout && counter_timeout >= round(frameRate * duration_timeout)
         CE_timeout = 0;
-        ET_waitForBaseline = 1;
+        ET_ITI_withZ = 1;
     end
     
     % END TRIAL: THRESHOLD REACHED
@@ -439,7 +439,7 @@ if CE_experimentRunning
     % END DELIVER REWARD
     if CE_rewardDelivery && counter_rewardDelivery >= round(frameRate * duration_rewardDelivery)
         CE_rewardDelivery = 0;
-        ET_ITI_successful = 1;
+        ET_ITI_withZ = 1;
         frequencyOverride = 0;
     end
     
@@ -449,11 +449,11 @@ if CE_experimentRunning
         duration_plotting, frameRate, 'Z Frame Correlations', 10, 10)
     delta_moved = 0; % place holder to potentially be overwritten by 'moveFastZ' function below
             
-    % START INTER-TRIAL-INTERVAL (POST-REWARD): WITH Z-CORRECTION
-    if ET_ITI_successful
-        ET_ITI_successful = 0;
-        CE_ITI_successful = 1;
-        counter_ITI_successful = 0;
+    % START INTER-TRIAL-INTERVAL: WITH Z-CORRECTION
+    if ET_ITI_withZ
+        ET_ITI_withZ = 0;
+        CE_ITI_withZ = 1;
+        counter_ITI_withZ = 0;
         soundVolume = 0;
         source.hSI.task_cursorAmplitude.writeDigitalData(soundVolume);
         source.hSI.task_goalAmplitude.writeDigitalData(0);
@@ -464,21 +464,21 @@ if CE_experimentRunning
             if delta ~=0
                 clampedDelta = sign(delta) * min(abs(delta), max_z_delta);
                 disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
-                currentPosition = moveFastZ(source, [], clampedDelta, [], [20,60]);
+                currentPosition = moveFastZ(source, [], clampedDelta, [], [50,350]);
                 delta_moved = clampedDelta;
                 counter_last_z_correction = counter_frameNum;
             end
         end
         
     end
-    % COUNT INTER-TRIAL-INTERVAL (POST-REWARD)
-    if CE_ITI_successful
-        counter_ITI_successful = counter_ITI_successful + 1;
+    % COUNT INTER-TRIAL-INTERVAL
+    if CE_ITI_withZ
+        counter_ITI_withZ = counter_ITI_withZ + 1;
     end
-    % END INTER-TRIAL-INTERVAL (POST-REWARD)
-    if CE_ITI_successful && counter_ITI_successful >= round(frameRate * duration_ITI_success)
-        counter_ITI_successful = NaN;
-        CE_ITI_successful = 0;
+    % END INTER-TRIAL-INTERVAL
+    if CE_ITI_withZ && counter_ITI_withZ >= round(frameRate * duration_ITI_success)
+        counter_ITI_withZ = NaN;
+        CE_ITI_withZ = 0;
         ET_waitForBaseline = 1;
     end
     
@@ -561,9 +561,9 @@ if ~isnan(counter_frameNum)
     logger.timeSeries(counter_frameNum,12) = ET_rewardDelivery;
     logger.timeSeries(counter_frameNum,13) = CE_rewardDelivery;
     logger.timeSeries(counter_frameNum,14) = counter_rewardDelivery;
-    logger.timeSeries(counter_frameNum,15) = ET_ITI_successful;
-    logger.timeSeries(counter_frameNum,16) = CE_ITI_successful;
-    logger.timeSeries(counter_frameNum,17) = counter_ITI_successful;
+    logger.timeSeries(counter_frameNum,15) = ET_ITI_withZ;
+    logger.timeSeries(counter_frameNum,16) = CE_ITI_withZ;
+    logger.timeSeries(counter_frameNum,17) = counter_ITI_withZ;
     logger.timeSeries(counter_frameNum,18) = ET_waitForBaseline;
     logger.timeSeries(counter_frameNum,19) = CE_waitForBaseline;
     logger.timeSeries(counter_frameNum,20) = ET_timeout;
@@ -637,9 +637,9 @@ end
         ET_rewardDelivery = 0;
         CE_rewardDelivery = 0;
         counter_rewardDelivery = 0;
-        ET_ITI_successful = 0;
-        CE_ITI_successful = 0;
-        counter_ITI_successful = 0;
+        ET_ITI_withZ = 0;
+        CE_ITI_withZ = 0;
+        counter_ITI_withZ = 0;
         ET_waitForBaseline = 0;
         CE_waitForBaseline = 0;
         ET_timeout = 0;
@@ -679,9 +679,9 @@ end
         loggerNames.timeSeries{12} = 'ET_rewardDelivery';
         loggerNames.timeSeries{13} = 'CE_rewardDelivery';
         loggerNames.timeSeries{14} = 'counter_rewardDelivery';
-        loggerNames.timeSeries{15} = 'ET_ITI_successful';
-        loggerNames.timeSeries{16} = 'CE_ITI_successful';
-        loggerNames.timeSeries{17} = 'counter_ITI_successful';
+        loggerNames.timeSeries{15} = 'ET_ITI_withZ';
+        loggerNames.timeSeries{16} = 'CE_ITI_withZ';
+        loggerNames.timeSeries{17} = 'counter_ITI_withZ';
         loggerNames.timeSeries{18} = 'ET_waitForBaseline';
         loggerNames.timeSeries{19} = 'CE_waitForBaseline';
         loggerNames.timeSeries{20} = 'ET_timeout';
@@ -769,9 +769,9 @@ end
         ET_rewardDelivery = 0;
         CE_rewardDelivery = 0;
         counter_rewardDelivery = 0;
-        ET_ITI_successful = 0;
-        CE_ITI_successful = 0;
-        counter_ITI_successful = 0;
+        ET_ITI_withZ = 0;
+        CE_ITI_withZ = 0;
+        counter_ITI_withZ = 0;
         ET_waitForBaseline = 0;
         CE_waitForBaseline = 0;
         ET_timeout = 0;
@@ -891,7 +891,7 @@ end
         % scalar finite number indicating depth within the lower and upper travel bounds set by the user.
         
         if range_position(1) > newPosition | range_position(2) < newPosition
-            error('RH ERROR: newPosition if out of range')
+            error(['RH ERROR: newPosition if out of range. Range: ', range_position, ' Attempted position: ', newPosition])
         end
             
 %         force = true;

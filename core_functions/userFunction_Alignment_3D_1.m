@@ -2,7 +2,7 @@ function outputVoltageToTeensy = userFunction_Alignment_3D_1(source, event, vara
 %% Variable stuff
 global registrationImage refIm_crop_conjFFT_shift_centerIdx img_MC_moving img_MC_moving_rolling loadedCheck_registrationImage counter_frameNum
 
-directory = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\zstack';
+directory = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806\zstack';
 
 currentImage = source.hSI.hDisplay.lastFrame{1};
 
