@@ -261,61 +261,25 @@ if CE_experimentRunning
         cursor_brain = cursor_brain_raw;
     end
     
-%% Check for overlap of ROIs and image
-% % frame = zeros(size(currentImage,1), size(currentImage,2));
-% % % frame(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-% % frame(sub2ind(size(currentImage), y_idx , x_idx)) = 1;
-% % % frame = frame(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+%% Check for overlap of ROIs and image (VERY SLOW)
 % 
-% % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
-% % size(y_tmp)
-% CI = zeros(size(currentImage,1), size(currentImage,2));
-% CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
+% % % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
+% % % size(y_tmp)
+% % CI = zeros(size(currentImage,1), size(currentImage,2));
+% % CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
 % 
 % WI = zeros(size(currentImage,1), size(currentImage,2));
 % % size(baselineStuff.ROIs.cellWeightings)
-% WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings, 230, 1);
-% % imagesc(CI)
+% WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings .* F_zscore, 230, 1);
 % 
 % LI = zeros(size(currentImage,1), size(currentImage,2));
 % LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
 % 
-% CWI = CI .* WI;
-% 
-% % size(x_idx)
-% % CI_masked = zeros(size(currentImage,1), size(currentImage,2));
-% % size(reshape(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) , baselineStuff.ROIs.cell_size_max , numCells))
-% % size(baselineStuff.ROIs.cellWeightings)
-% % baselineStuff.ROIs.cellWeightings
-% % tmp = reshape(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) , baselineStuff.ROIs.cell_size_max , numCells) .* baselineStuff.ROIs.cellWeightings;
-% % tmp = reshape(ones(length(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4))) , baselineStuff.ROIs.cell_size_max , numCells) .* baselineStuff.ROIs.cellWeightings;
-% 
-% % CI_masked(sub2ind(size(currentImage), y_idx , x_idx)) = reshape(tmp, 1,[]);
-% % CI_masked = int32(CI_masked) .* currentImage;
-% % class(currentImage)
-% 
-% % x_idx
-% % size(frame)
-% % % size(img_MC_moving_rolling)
-% % figure;
-% % imshowpair(mean(img_MC_moving_rolling, 3), frame)
-% % if mod(counter_frameNum, 5)==0
-% %     imshowpair(currentImage, frame)
-% % end
-% % 
-% % imshowpair(currentImage, CI_masked)
-% % imshow(
-% % min(CI_masked)
-% imagesc(LI)
-% % nanmean(reshape(tmp, 1,[]), 2)
-% % % plot(nanmean(tmp, 2))
-% % caxis([-1000 6000])
-% % [~, idx_sort] = sort(baselineStuff.ROIs.cellWeightings);
-% % plot(F_zscore(idx_sort))
-% caxis([-0 30])
-% % caxis([-0.1 0.5])
-% 
-%     
+% % CWI = CI .* WI;
+% % LCWI = CI .* LI .* WI;
+% LWI = LI .* WI;
+% plotUpdatedImagesc(LWI , [-1,4], 'test')
+
 %% Trial prep
     trialType_cursorOn = trialStuff.condTrialBool(trialNum,1);
     trialType_feedbackLinked = trialStuff.condTrialBool(trialNum,2);
