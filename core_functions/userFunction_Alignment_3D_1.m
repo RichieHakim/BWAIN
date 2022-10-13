@@ -1,8 +1,10 @@
 function outputVoltageToTeensy = userFunction_Alignment_3D_1(source, event, varargin)
 %% Variable stuff
-global registrationImage refIm_crop_conjFFT_shift_centerIdx img_MC_moving img_MC_moving_rolling loadedCheck_registrationImage counter_frameNum
+global registrationImage refIm_crop_conjFFT_shift img_MC_moving ...
+    img_MC_moving_rolling loadedCheck_registrationImage counter_frameNum ...
+    indRange_y_crop indRange_x_crop
 
-directory = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806\zstack';
+directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data';
 
 currentImage = source.hSI.hDisplay.lastFrame{1};
 
@@ -13,16 +15,24 @@ borderInner = 10;
 % loadedCheck_registrationImage = 0
 
 if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1
-    tmp = load([directory , '\stack.mat']);
-%     file_fieldName = fieldnames(tmp);
-%     registrationImage = eval(['stack.' , file_fieldName{1}]);
-    registrationImage = eval(['tmp.stack.' , 'stack_avg']);
-    loadedCheck_registrationImage=1;
+% if 1
+%     tmp = load([directory , '\stack.mat']);
+% %     tmp = load([directory , '\stack_warped.mat']);
+% %     file_fieldName = fieldnames(tmp);
+% %     registrationImage = eval(['stack.' , file_fieldName{1}]);
+%     registrationImage = eval(['tmp.stack.' , 'stack_avg']);
+
+    type_stack = 'stack';
+%     type_stack = 'stack_warped';
+    tmp = load([directory , '\', type_stack, '.mat']);
+    disp(['LOADED zstack from', directory , '\stack_warped.mat'])
+    registrationImage = eval(['tmp.', type_stack, '.stack_avg']);
     
     clear refIm_crop_conjFFT_shift_centerIdx
     for ii = 1:size(registrationImage,1)
-        refIm_crop_conjFFT_shift_centerIdx(ii,:,:) = make_fft_for_MC(registrationImage(ii,:,:));
+        [refIm_crop_conjFFT_shift(ii,:,:), indRange_y_crop, indRange_x_crop] = make_fft_for_MC(squeeze(registrationImage(ii,:,:)));
     end
+    loadedCheck_registrationImage = 1;
     
 end
 %% == USER SETTINGS ==
@@ -30,7 +40,7 @@ end
 frameRate = 30;
 duration_plotting = 15 * frameRate; % ADJUSTABLE: change number value (in seconds)
 
-numFramesToAvgForMotionCorr = 15;
+numFramesToAvgForMotionCorr = 60;
 
 n_slices = size(registrationImage, 1);
 
@@ -47,9 +57,6 @@ end
 if counter_frameNum == 1
     disp('frameNum = 1')
 end
-% ======== COMMENT THIS IN/OUT TO START SESSION =======
-% startSession
-% =====================================================
 
 counter_frameNum = counter_frameNum + 1;
 % disp(counter_frameNum)
@@ -89,11 +96,17 @@ img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
 
 xShift = NaN(n_slices,1);
 yShift = NaN(n_slices,1);
-cxx = NaN(n_slices, size(currentImage,2));
-cyy = NaN(n_slices, size(currentImage,1));
+cxx = NaN(n_slices, indRange_x_crop(2) - indRange_x_crop(1) +1);
+cyy = NaN(n_slices, indRange_y_crop(2) - indRange_y_crop(1) +1);
 for z_frame = 1:n_slices
-    [yShift_tmp , xShift_tmp, cyy_tmp, cxx_tmp] = motionCorrection_ROI(img_MC_moving_rollingAvg , squeeze(registrationImage(z_frame,:,:)), [], maskPref, borderOuter, borderInner );
-%     [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , refIm_crop_conjFFT_shift_centerIdx(z_frame,:,:));
+%     [yShift_tmp , xShift_tmp, cyy_tmp, cxx_tmp] = motionCorrection_ROI(img_MC_moving_rollingAvg , squeeze(registrationImage(z_frame,:,:)), [], maskPref, borderOuter, borderInner );
+    [yShift_tmp , xShift_tmp, cyy_tmp, cxx_tmp] = motionCorrection_ROI(...
+        img_MC_moving_rollingAvg(indRange_y_crop(1) : indRange_y_crop(2) , indRange_x_crop(1) : indRange_x_crop(2)),...
+        [],...
+        squeeze(refIm_crop_conjFFT_shift(z_frame,:,:)),...
+        maskPref, borderOuter, borderInner...
+        );
+    
     xShift(z_frame,:) = xShift_tmp;
     yShift(z_frame,:) = yShift_tmp;
     cxx(z_frame,:) = cxx_tmp;
@@ -109,12 +122,12 @@ MC_corr = max(cxx, [], 2);
 % img_ROI_corrected{ii} = currentImage((baselineStuff.idxBounds_ROI{ii}(1,2):baselineStuff.idxBounds_ROI{ii}(2,2)) +round(yShift(ii)) ,...
 %     (baselineStuff.idxBounds_ROI{ii}(1,1):baselineStuff.idxBounds_ROI{ii}(2,1)) +round(xShift(ii))); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
 
-% if abs(xShift) >80
-%     xShift = 0;
-% end
-% if abs(yShift) >80
-%     yShift = 0;
-% end
+if abs(xShift) >10
+    xShift = 0;
+end
+if abs(yShift) >10
+    yShift = 0;
+end
 
 %% Plotting
 
@@ -131,7 +144,7 @@ end
 end
 
 %%
-function refIm_crop_conjFFT_shift_centerIdx = make_fft_for_MC(refIm)
+function [refIm_crop_conjFFT_shift, idxRange_y_crop, idxRange_x_crop] = make_fft_for_MC(refIm)
 
     refIm = single(refIm);
     % crop_factor = 5;
@@ -146,11 +159,11 @@ function refIm_crop_conjFFT_shift_centerIdx = make_fft_for_MC(refIm)
     % indRange_y_crop = [round(middle_y - length_y/crop_factor) , round(middle_y + length_y/crop_factor) ];
     % indRange_x_crop = [round(middle_x - length_y/crop_factor) , round(middle_x + length_y/crop_factor) ];
 
-    indRange_y_crop = [round(middle_y - (crop_size/2-1)) , round(middle_y + (crop_size/2)) ];
-    indRange_x_crop = [round(middle_x - (crop_size/2-1)) , round(middle_x + (crop_size/2)) ];
-
-    refIm_crop = refIm(indRange_y_crop(1) : indRange_y_crop(2) , indRange_x_crop(1) : indRange_x_crop(2)) ;
-
+    idxRange_y_crop = [round(middle_y - (crop_size/2-1)) , round(middle_y + (crop_size/2)) ];
+    idxRange_x_crop = [round(middle_x - (crop_size/2-1)) , round(middle_x + (crop_size/2)) ];
+    
+    refIm_crop = refIm(idxRange_y_crop(1) : idxRange_y_crop(2) , idxRange_x_crop(1) : idxRange_x_crop(2)) ;
+   
     refIm_crop_conjFFT = conj(fft2(refIm_crop));
     refIm_crop_conjFFT_shift = fftshift(refIm_crop_conjFFT);
 
@@ -162,5 +175,8 @@ function refIm_crop_conjFFT_shift_centerIdx = make_fft_for_MC(refIm)
     %     disp('RH WARNING: x length of refIm_crop_conjFFT_shift is even. Something is very wrong')
     % end
 
-    refIm_crop_conjFFT_shift_centerIdx = ceil(size(refIm_crop_conjFFT_shift)/2);
+%     refIm_crop_conjFFT_shift_centerIdx = ceil(size(refIm_crop_conjFFT_shift)/2);
+    
+%     size(refIm_crop_conjFFT_shift)
+
 end

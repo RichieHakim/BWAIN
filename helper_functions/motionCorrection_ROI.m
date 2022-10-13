@@ -52,20 +52,21 @@ movingIm_FFT_shift = fftshift(movingIm_FFT);
 % % figure; imagesc(abs(movingIm_FFT_padded))
 % movingIm_FFT_padded = bsxfun(@times, movingIm_FFT_padded, movingIm_FFT_shift);
 
-
 if maskPref
     movingIm_FFT_toUse = maskImage(movingIm_FFT_shift, borderOuter, borderInner);
 else
     movingIm_FFT_toUse = movingIm_FFT_shift;
 end
 
+% size(refIm_conjFFT_padded)
+% size(movingIm_FFT_toUse)
 % size(refIm_conjFFT)
 % size(movingIm_FFT)
 % refIm_conjFFT_padded
 % figure; imagesc(abs(movingIm_FFT_padded))
 % figure; imagesc(abs(refIm_conjFFT_padded))
 % spectralCorr = bsxfun(@times,refIm_conjFFT,movingIm_FFT);
-spectralCorr = bsxfun(@times,refIm_conjFFT_padded, movingIm_FFT_toUse);
+spectralCorr = bsxfun(@times, refIm_conjFFT_padded, movingIm_FFT_toUse);
 phaseCorr = spectralCorr./(abs(spectralCorr)+0.01); % phase correlation, add eps to avoid division by zero
 Corr = ifft2(phaseCorr,'symmetric'); % cc is a 3D array. ifft2 takes the 2-D fourier transform for each slice
 % Corr = ifft2(phaseCorr,'nonsymmetric'); % cc is a 3D array. ifft2 takes the 2-D fourier transform for each slice

@@ -7,26 +7,26 @@
 % % refImOld variable should be named: 'refImOld'
 
 % Use day N-1 or day 0
-dir_Fall = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220223\exp\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\scanimage_data\20221004\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 % Fall variable should be named: 'Fall' (from S2p; contains stat file)
 load([dir_Fall '\' fileName_Fall]);
 
 % Use day N (today)
-directory_today = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\baseline';
+directory_today = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\scanimage_data\20220817';
 fileName_movie = 'baseline';
 
 % Analysis lastNight dir
-directory_analysisLastNight = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\analysis_lastNight';
+% directory_analysisLastNight = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\analysis_lastNight';
 %% load in alignment_indices
-alignment_indices = load([directory_analysisLastNight, '\', 'alignment_indices.mat']).alignment_indices;
+% alignment_indices = load([directory_analysisLastNight, '\', 'alignment_indices.mat']).alignment_indices;
 
 %%
 path_spatialFootprints = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\analysis_lastNight\spatial_footprints_aligned.h5';
 
 %%
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220215\analysis_day0';
+directory_weights = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\day0_analysis';
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
 %% Import and downsample movie

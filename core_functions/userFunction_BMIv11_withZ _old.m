@@ -144,7 +144,6 @@ counter_frameNum = counter_frameNum + 1;
 if counter_frameNum == 1
     disp('frameNum = 1')
 end
-
 % endSession
 
 % %% SAVING
@@ -153,23 +152,42 @@ end
 % saveParams('F:\RH_Local\Rich data\scanimage data\20191110\mouse 10.13B\expParams.mat')
 
 %% == MOTION CORRECTION ==
-% Make a cropped version of the current image for use in motion correction
+% %     img_MC_moving_rolling = [];
+
+% if numel(baselineStuff.idxBounds_ROI) ~= numCells
+%     error('NUMBER OF ROIs IS DIFFERENT THAN NUMBER OF DESIRED CELLS.  RH20191215')
+% end
+%
+% xShift = zeros(numCells,1); yShift = zeros(numCells,1);
+% MC_corr = zeros(numCells,1);
+
+% img_MC_moving = []; % COMMENT THESE TWO LINES IN TO UPDATE REFERENCE IMAGE
+% img_MC_moving_rolling = [];
+
+if isempty(img_MC_moving)
+    img_MC_moving = registrationImage(3, indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+end
+
+% img_MC_moving = currentImage(baselineStuff.MC.indRange_y_crop(1):baselineStuff.MC.indRange_y_crop(2)  ,...
+%     baselineStuff.MC.indRange_x_crop(1):baselineStuff.MC.indRange_x_crop(2)); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
 img_MC_moving = currentImage(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
 
-% Track frames for fast 2D motion correction
-if ~isa(img_MC_moving_rolling, 'uint16') | size(img_MC_moving_rolling,3) ~= numFramesToAvgForMotionCorr
+if ~isa(img_MC_moving_rolling, 'uint16')
+    %     img_MC_moving_rolling = img_MC_moving;
     img_MC_moving_rolling = zeros([size(img_MC_moving) , numFramesToAvgForMotionCorr], 'uint16');
     disp('making new img_MC_moving_rolling')
 end
+
+% img_MC_moving_rolling(:,:,end+1) = img_MC_moving;
 if counter_frameNum >= 0
     img_MC_moving_rolling(:,:,mod(counter_frameNum , numFramesToAvgForMotionCorr)+1) = img_MC_moving;
 end
 img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
 
 
-% Track frames for slow Z-axis motion correction
+% Track Frames for Rolling Median 
 if ~isa(img_MC_moving_rolling_z, 'uint16') | size(img_MC_moving_rolling_z,3) ~= numFramesToMedForZCorr
-    img_MC_moving_rolling_z = zeros([size(img_MC_moving) , numFramesToMedForZCorr], 'uint16');
+    img_MC_moving_rolling_z = uint16(zeros([size(img_MC_moving) , numFramesToMedForZCorr]));
 end
 if (counter_frameNum >= 0) && (mod(counter_frameNum, zCorrFrameInterval) == 0)
     img_MC_moving_rolling_z(:,:,mod(counter_frameNum/zCorrFrameInterval ,numFramesToMedForZCorr)+1) = img_MC_moving;
@@ -177,14 +195,24 @@ end
 [delta, frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
     maskPref, borderOuter, borderInner);
 
-[xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , baselineStuff.MC.meanImForMC_crop_conjFFT_shift, maskPref, borderOuter, borderInner);
+% % [xShift , yShift, cxx, cyy] = motionCorrection_singleFOV(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop , baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
+% % [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg(1:100,1:100) , baselineStuff.MC.meanImForMC_crop(1:100,1:100) , baselineStuff.MC.meanImForMC_crop_conjFFT_shift(1:100,1:100));
+[xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift_masked(2,:,:)), maskPref, borderOuter, borderInner);
+% % [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop);
 MC_corr = max(cxx);
 
+
+% xShift = xShifts(2);
+% yShift = yShifts(2);
+% MC_corr = frame_corrs(2);
 
 % xShift = 0;
 % yShift = 0;
 % MC_corr = 0;
 
+
+% img_ROI_corrected{ii} = currentImage((baselineStuff.idxBounds_ROI{ii}(1,2):baselineStuff.idxBounds_ROI{ii}(2,2)) +round(yShift(ii)) ,...
+%     (baselineStuff.idxBounds_ROI{ii}(1,1):baselineStuff.idxBounds_ROI{ii}(2,1)) +round(xShift(ii))); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
 
 if abs(xShift) >60
     xShift = 0;
@@ -192,6 +220,12 @@ end
 if abs(yShift) >60
     yShift = 0;
 end
+
+% size(img_MC_moving_rolling)
+% figure; imagesc(img_MC_moving_rollingAvg)
+% figure; plot(img_MC_moving_rollingAvg(0,0,:))
+% squeeze(img_MC_moving_rolling(1,1,:))
+
 %% == EXTRACT DECODER Product of Current Image and Decoder Template ==
 
 % New extractor
@@ -219,6 +253,8 @@ TA_CF_lam = tall_currentImage .* baselineStuff.ROIs.spatial_footprints_tall_warp
 TA_CF_lam_reshape = reshape(TA_CF_lam , baselineStuff.ROIs.cell_size_max , numCells);
 vals_neurons = nansum( TA_CF_lam_reshape , 1 );
 % toc
+
+
 %% == ROLLING STATS ==
 if counter_frameNum >=0
     logger_valsROIs(counter_frameNum,:) = vals_neurons;
@@ -244,7 +280,11 @@ if CE_experimentRunning
     %     F_mean = nanmean(runningVals , 1);
     F_zscore = single((vals_neurons-F_mean)./F_std);
     F_zscore(isnan(F_zscore)) = 0;
-
+    
+%     tmp = baselineStuff.ROIs.cellWeightings';
+%     tmp(tmp < 0.05) = 0;
+%     cursor_brain_raw = F_zscore * tmp;
+    
     cursor_brain_raw = F_zscore * baselineStuff.ROIs.cellWeightings';
     logger.decoder(counter_frameNum,2) = cursor_brain_raw;
     
@@ -262,61 +302,61 @@ if CE_experimentRunning
     end
     
 %% Check for overlap of ROIs and image
-% % frame = zeros(size(currentImage,1), size(currentImage,2));
-% % % frame(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-% % frame(sub2ind(size(currentImage), y_idx , x_idx)) = 1;
-% % % frame = frame(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+% frame = zeros(size(currentImage,1), size(currentImage,2));
+% % frame(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
+% frame(sub2ind(size(currentImage), y_idx , x_idx)) = 1;
+% % frame = frame(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+
+% y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
+% size(y_tmp)
+CI = zeros(size(currentImage,1), size(currentImage,2));
+CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
+
+WI = zeros(size(currentImage,1), size(currentImage,2));
+% size(baselineStuff.ROIs.cellWeightings)
+WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings, 230, 1);
+% imagesc(CI)
+
+LI = zeros(size(currentImage,1), size(currentImage,2));
+LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
+
+CWI = CI .* WI;
+
+% size(x_idx)
+% CI_masked = zeros(size(currentImage,1), size(currentImage,2));
+% size(reshape(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) , baselineStuff.ROIs.cell_size_max , numCells))
+% size(baselineStuff.ROIs.cellWeightings)
+% baselineStuff.ROIs.cellWeightings
+% tmp = reshape(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) , baselineStuff.ROIs.cell_size_max , numCells) .* baselineStuff.ROIs.cellWeightings;
+% tmp = reshape(ones(length(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4))) , baselineStuff.ROIs.cell_size_max , numCells) .* baselineStuff.ROIs.cellWeightings;
+
+% CI_masked(sub2ind(size(currentImage), y_idx , x_idx)) = reshape(tmp, 1,[]);
+% CI_masked = int32(CI_masked) .* currentImage;
+% class(currentImage)
+
+% x_idx
+% size(frame)
+% % size(img_MC_moving_rolling)
+% figure;
+% imshowpair(mean(img_MC_moving_rolling, 3), frame)
+% if mod(counter_frameNum, 5)==0
+%     imshowpair(currentImage, frame)
+% end
 % 
-% % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
-% % size(y_tmp)
-% CI = zeros(size(currentImage,1), size(currentImage,2));
-% CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
-% 
-% WI = zeros(size(currentImage,1), size(currentImage,2));
-% % size(baselineStuff.ROIs.cellWeightings)
-% WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings, 230, 1);
-% % imagesc(CI)
-% 
-% LI = zeros(size(currentImage,1), size(currentImage,2));
-% LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-% 
-% CWI = CI .* WI;
-% 
-% % size(x_idx)
-% % CI_masked = zeros(size(currentImage,1), size(currentImage,2));
-% % size(reshape(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) , baselineStuff.ROIs.cell_size_max , numCells))
-% % size(baselineStuff.ROIs.cellWeightings)
-% % baselineStuff.ROIs.cellWeightings
-% % tmp = reshape(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) , baselineStuff.ROIs.cell_size_max , numCells) .* baselineStuff.ROIs.cellWeightings;
-% % tmp = reshape(ones(length(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4))) , baselineStuff.ROIs.cell_size_max , numCells) .* baselineStuff.ROIs.cellWeightings;
-% 
-% % CI_masked(sub2ind(size(currentImage), y_idx , x_idx)) = reshape(tmp, 1,[]);
-% % CI_masked = int32(CI_masked) .* currentImage;
-% % class(currentImage)
-% 
-% % x_idx
-% % size(frame)
-% % % size(img_MC_moving_rolling)
-% % figure;
-% % imshowpair(mean(img_MC_moving_rolling, 3), frame)
-% % if mod(counter_frameNum, 5)==0
-% %     imshowpair(currentImage, frame)
-% % end
-% % 
-% % imshowpair(currentImage, CI_masked)
-% % imshow(
-% % min(CI_masked)
-% imagesc(LI)
-% % nanmean(reshape(tmp, 1,[]), 2)
-% % % plot(nanmean(tmp, 2))
-% % caxis([-1000 6000])
-% % [~, idx_sort] = sort(baselineStuff.ROIs.cellWeightings);
-% % plot(F_zscore(idx_sort))
-% caxis([-0 30])
-% % caxis([-0.1 0.5])
-% 
-%     
-%% Trial prep
+% imshowpair(currentImage, CI_masked)
+% imshow(
+% min(CI_masked)
+imagesc(LI)
+% nanmean(reshape(tmp, 1,[]), 2)
+% % plot(nanmean(tmp, 2))
+% caxis([-1000 6000])
+% [~, idx_sort] = sort(baselineStuff.ROIs.cellWeightings);
+% plot(F_zscore(idx_sort))
+caxis([-0 30])
+% caxis([-0.1 0.5])
+
+    
+    %% Trial prep
     trialType_cursorOn = trialStuff.condTrialBool(trialNum,1);
     trialType_feedbackLinked = trialStuff.condTrialBool(trialNum,2);
     trialType_rewardOn = trialStuff.condTrialBool(trialNum,3);
@@ -529,6 +569,7 @@ if CE_experimentRunning
     else
         voltage_cursorCurrentPos = convert_cursor_to_voltage(cursor_output , range_cursor, voltage_at_threshold);
     end
+%     voltage_cursorCurrentPos
 %     voltage_cursorCurrentPos = (mod(counter_frameNum,2)+0.5);
     source.hSI.task_cursorCurrentPos.writeAnalogData(double(voltage_cursorCurrentPos));
 
@@ -762,6 +803,8 @@ end
         loggerNames.motionCorrection{6} = 'z_correlation_1';
         loggerNames.motionCorrection{7} = 'z_correlation_2';
         loggerNames.motionCorrection{8} = 'z_correlation_3';
+        loggerNames.motionCorrection{9} = 'z_correlation_4';
+        loggerNames.motionCorrection{10}= 'z_correlation_5';
         
         loggerNames.trials{1} = 'trialNum_trialStart';
         loggerNames.trials{2} = 'time_now_trialStart';

@@ -22,18 +22,27 @@
 % Output: distance from most similar reference image to the central
 %         reference image
 
-function [delta,MC_corr] = zCorrection(image, reference, reference_fft, reference_diffs, maskPref, borderOuter, borderInner)
+function [delta, MC_corr, xShifts, yShifts] = zCorrection(image, reference, reference_fft, reference_diffs, maskPref, borderOuter, borderInner)
     n_slices = size(reference, 1);
-    cxx = NaN(n_slices, size(image,2));
+    cxx = NaN(n_slices, size(image,1));
+    cyy = NaN(n_slices, size(image,2));
     for z_frame = 1:n_slices
-        [yShift_tmp , xShift_tmp, cyy_tmp, cxx_tmp] = motionCorrection_ROI(image, ...
-            squeeze(reference(z_frame,:,:)), squeeze(reference_fft(z_frame,:,:)), ...
-            maskPref, borderOuter, borderInner);
-        cxx(z_frame,:) = cxx_tmp;
+        if ~isempty(reference_fft)
+            refIm_tmp = [];
+        else
+            refIm_tmp = squeeze(reference(z_frame,:,:));
+        end
         
+        [yShift_tmp , xShift_tmp, cyy_tmp, cxx_tmp] = motionCorrection_ROI(image, ...
+            refIm_tmp, squeeze(reference_fft(z_frame,:,:)), ...
+            maskPref, borderOuter, borderInner);
+        
+        cxx(z_frame,:) = cxx_tmp;
+        cyy(z_frame,:) = cyy_tmp';
 %         figure; imagesc(squeeze(abs(reference_fft(z_frame,:,:))))
     end
-    MC_corr = max(cxx, [], 2);
+    [MC_corr, xShifts] = max(cxx, [], 2);
+    [null, yShifts] = max(cyy, [], 2);
     [maxVal, maxArg] = max(MC_corr);
     delta = (ceil(n_slices/2)-maxArg) * reference_diffs; 
 end

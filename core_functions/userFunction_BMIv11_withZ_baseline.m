@@ -16,15 +16,14 @@ global counter_frameNum counter_trialIdx counter_CS_threshold counter_timeout co
     registrationImage referenceDiffs refIm_crop_conjFFT_shift refIm_crop indRange_y_Crop indRange_x_Crop...
     img_MC_moving_rolling_z refIm_crop_conjFFT_shift_masked counter_last_z_correction...
     
-
 persistent trialStuff 
 
 currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-directory = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806';
-directory_zstack = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806\zstack';
+directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\analysis_data\20221010';
+directory_zstack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\analysis_data\20221010';
 maskPref = 1;
 borderOuter = 20;
 borderInner = 10;
@@ -35,16 +34,18 @@ if ~isstruct(trialStuff)
     disp(['LOADED trialStuff from:  ' , path_trialStuff])
 end
 
-%loadedCheck_registrationImage = []
-if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1 | isempty(registrationImage) | isempty(refIm_crop_conjFFT_shift)
-    
+% loadedCheck_registrationImage = []
+if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1 | isempty(registrationImage) | isempty(refIm_crop_conjFFT_shift) | isempty(indRange_y_Crop)
+% if 1
 %     loadedCheck_registrationImage
 %     size(registrationImage)
     
     tmp = load([directory_zstack , '\stack.mat']);
+%     tmp = load([directory_zstack , '\stack_warped.mat']);
     registrationImage = eval(['tmp.stack.' , 'stack_avg']);
     referenceDiffs = eval(['tmp.stack.','step_size_um']);
     loadedCheck_registrationImage=1;
+    
 
 %     clear refIm_crop_conjFFT_shift
     for ii = 1:size(registrationImage,1)
@@ -58,6 +59,10 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
     
 %     figure;
 %     imagesc(squeeze(registrationImage(3,:,:)))
+    registrationImage = registrationImage(2:4,:,:);
+    refIm_crop = refIm_crop(2:4,:,:);
+    refIm_crop_conjFFT_shift = refIm_crop_conjFFT_shift(2:4,:,:);
+    refIm_crop_conjFFT_shift_masked = refIm_crop_conjFFT_shift_masked(2:4,:,:);
     
     disp('Loaded z-stack')
 end
@@ -74,14 +79,14 @@ show_MC_ref_images          = 0;
 numFramesToAvgForMotionCorr = 20;
 % numFramesToMedForZCorr      = 30;
 % zCorrFrameInterval          = 30; 
-numFramesToMedForZCorr      = 30*4;
+numFramesToMedForZCorr      = 30*1;
 zCorrFrameInterval          = 15; 
 %zCorrPtile                  = 10;
 interval_z_correction       = 20*frameRate;
 % max_z_delta                 = referenceDiffs/2;
 max_z_delta                 = 1;
 
-threshold_value             = 0.8;
+threshold_value             = 0.7;
 
 % % numCells = max(baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,1));
 % numCells = baselineStuff.ROIs.num_cells;
@@ -105,13 +110,14 @@ duration_trial          = 20;
 duration_timeout        = 4;
 duration_threshold      = 0.066;
 duration_rewardTone     = 1.5; % currently unused
-duration_ITI_success    = 3;
+duration_ITI    = 3;
 duration_rewardDelivery = 0.20;
 
 % duration_rollingStats       = round(frameRate * 60 * 15);
 % subSampleFactor_runningVals = 1;
 % numSamples_rollingStats = round(duration_rollingStats/subSampleFactor_runningVals);
-duration_buildingUpStats    = round(frameRate * 60 * 1);
+% duration_buildingUpStats    = round(frameRate * 60 * 1);
+duration_buildingUpStats    = 10;
 duration_rollingStats = duration_buildingUpStats;
 
 threshold_quiescence    = 0;
@@ -173,14 +179,16 @@ if counter_frameNum >= 0
 end
 img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
 
-
-% size(img_MC_moving_rolling)
-
-% [xShift , yShift, cxx, cyy] = motionCorrection_singleFOV(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop , baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
-% [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg(1:100,1:100) , baselineStuff.MC.meanImForMC_crop(1:100,1:100) , baselineStuff.MC.meanImForMC_crop_conjFFT_shift(1:100,1:100));
-[xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift(2,:,:)), maskPref, borderOuter, borderInner);
-% [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop);
-MC_corr = max(cxx);
+% % [xShift , yShift, cxx, cyy] = motionCorrection_singleFOV(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop , baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
+% % [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg(1:100,1:100) , baselineStuff.MC.meanImForMC_crop(1:100,1:100) , baselineStuff.MC.meanImForMC_crop_conjFFT_shift(1:100,1:100));
+% [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift_masked(2,:,:)), maskPref, borderOuter, borderInner);
+% % [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , baselineStuff.MC.meanImForMC_crop);
+% MC_corr = max(cxx);
+[delta, frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
+    maskPref, borderOuter, borderInner);
+xShift = xShifts(2);
+yShift = yShifts(2);
+MC_corr = frame_corrs(2);
 
 % xShift = 0;
 % yShift = 0;
@@ -304,7 +312,7 @@ if CE_experimentRunning
     % CE = current epoch
     % ET = epoch transition signal
     % CS = current state
-    
+
     % START BUILDING UP STATS
     if counter_frameNum == 1
         CE_buildingUpStats = 1;
@@ -443,12 +451,7 @@ if CE_experimentRunning
         frequencyOverride = 0;
     end
     
-    [delta, frame_corrs] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
-        maskPref, borderOuter, borderInner);
-    plotUpdatedOutput7(frame_corrs,...
-        duration_plotting, frameRate, 'Z Frame Correlations', 10, 10)
     delta_moved = 0; % place holder to potentially be overwritten by 'moveFastZ' function below
-            
     % START INTER-TRIAL-INTERVAL: WITH Z-CORRECTION
     if ET_ITI_withZ
         ET_ITI_withZ = 0;
@@ -476,7 +479,7 @@ if CE_experimentRunning
         counter_ITI_withZ = counter_ITI_withZ + 1;
     end
     % END INTER-TRIAL-INTERVAL
-    if CE_ITI_withZ && counter_ITI_withZ >= round(frameRate * duration_ITI_success)
+    if CE_ITI_withZ && counter_ITI_withZ >= round(frameRate * duration_ITI)
         counter_ITI_withZ = NaN;
         CE_ITI_withZ = 0;
         ET_waitForBaseline = 1;
@@ -492,7 +495,7 @@ if CE_experimentRunning
         voltage_cursorCurrentPos = convert_cursor_to_voltage(cursor_output , range_cursor, voltage_at_threshold);
     end
 %     voltage_cursorCurrentPos
-%     voltage_cursorCurrentPos = (mod(counter_frameNum,2)+0.5);
+    voltage_cursorCurrentPos = (mod(counter_frameNum,2)+0.5);
     source.hSI.task_cursorCurrentPos.writeAnalogData(double(voltage_cursorCurrentPos));
 
     freqToOutput = convert_voltage_to_frequency(voltage_cursorCurrentPos , 3.3 , range_freqOutput); % for logging purposes only. function should mimic (exactly) the voltage to frequency transformation on teensy
@@ -530,6 +533,8 @@ if counter_frameNum>1
             duration_session, frameRate, 'Motion Correction Correlation All', 10, 1)
     end
  
+    plotUpdatedOutput7(frame_corrs,...
+        duration_plotting, frameRate, 'Z Frame Correlations', 10, 10)
 
 %     plotUpdatedFrame(squeeze(mean(img_MC_moving_rolling_z,3)), 'test')
     
@@ -539,10 +544,9 @@ if counter_frameNum>1
 %             plotUpdatedMotionCorrectionImage_singleRegion(baselineStuff.MC.meanImForMC_crop , img_MC_moving_rollingAvg , img_MC_moving_rollingAvg, 'Motion Correction')
 %         end
 %     end
-    
-    
 end
 %% DATA LOGGING
+
 
 if ~isnan(counter_frameNum)
     %     logger_valsROIs(counter_frameNum,:) = vals_neurons; %already done above
@@ -596,15 +600,17 @@ if ~isnan(counter_frameNum)
     logger.motionCorrection(counter_frameNum,3) = MC_corr;
     logger.motionCorrection(counter_frameNum,4) = source.hSI.hFastZ.currentFastZs{1}.targetPosition;
     logger.motionCorrection(counter_frameNum,5) = delta_moved;
-    logger.motionCorrection(counter_frameNum,6:10) = frame_corrs; 
+    logger.motionCorrection(counter_frameNum,6:8) = frame_corrs; 
 
-%     toc
 end
 
 %% End Session
-if  counter_frameNum == round(duration_session * 0.99)
+if  counter_frameNum == round(duration_session * 0.95)
+% if counter_frameNum == 97600
     endSession
 end
+
+% toc
 
 %% FUNCTIONS
     function updateLoggerTrials_START % calls at beginning of a trial
@@ -716,8 +722,6 @@ end
         loggerNames.motionCorrection{6} = 'z_correlation_1';
         loggerNames.motionCorrection{7} = 'z_correlation_2';
         loggerNames.motionCorrection{8} = 'z_correlation_3';
-        loggerNames.motionCorrection{9} = 'z_correlation_4';
-        loggerNames.motionCorrection{10}= 'z_correlation_5';
         
         loggerNames.trials{1} = 'trialNum_trialStart';
         loggerNames.trials{2} = 'time_now_trialStart';
@@ -808,7 +812,7 @@ end
         %expParams.subSampleFactor_runningVals = subSampleFactor_runningVals;
         expParams.threshold_quiescence = threshold_quiescence;
         expParams.duration_rewardTone = duration_rewardTone;
-        expParams.duration_ITI_success = duration_ITI_success;
+        expParams.duration_ITI = duration_ITI;
         expParams.duration_rewardDelivery = duration_rewardDelivery;
         expParams.reward_duration = reward_duration; % in ms
         expParams.reward_delay = reward_delay;
@@ -858,16 +862,15 @@ end
 %         refIm_crop_conjFFT_shift_centerIdx = ceil(size(refIm_crop_conjFFT_shift)/2);
     end
 
-    function [delta,frame_corrs] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner)
+    function [delta,frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner)
 %         image_toUse = prctile(img_MC_moving_rolling_z, zCorrPtile, 3);
         image_toUse = mean(img_MC_moving_rolling_z, 3);
 %         figure; imagesc(image_toUse)
 %         size(img_MC_moving_rolling_z)
 %         figure; imagesc(squeeze(img_MC_moving_rolling_z(:,:,1)))
 
-        [delta,frame_corrs] = zCorrection(image_toUse, registrationImage, ...
+        [delta, frame_corrs, xShifts, yShifts] = zCorrection(image_toUse, registrationImage, ...
         refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner);
-        
     end
 
     function currentPosition = moveFastZ(source, evt, delta, position, range_position)

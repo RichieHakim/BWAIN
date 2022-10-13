@@ -45,7 +45,7 @@ load(path_baselineStuff);
 directory_movie = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\scanimage_data\baseline';
 fileName_movie = 'baseline';
 
-frames_totalExpected = 108000;
+frames_totalExpected = 15000;
 frames_perFile = 1000;
 
 ds_factor = 5; % downsampling

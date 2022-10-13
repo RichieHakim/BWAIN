@@ -4,13 +4,14 @@ maxNumTrials = 500; % always make the max number of trials way more than what is
 
 condition_names{1} = 'cursorOn';
 condition_names{2} = 'feedbackLinked';
+
 condition_names{3} = 'rewardOn';
 numConditions = length(condition_names);
 
 %% Make fake decoder data for each trial
 
 % Import a logger to steal decoder output for fake feedback decoder
-path_fakeData = 'D:\RH_local\fake_data_for_trialStuff\round5_mouse2_6_20210416_logger.mat';
+path_fakeData = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221011\analysis_data\logger.mat';
 load(path_fakeData)
 
 sample_rate = 30; % in Hz, rough imaging speed
@@ -20,7 +21,7 @@ maxTrialDuration = 60 * Fs; % Make this longer than the actual trial duration
 fakeDecoderData = logger.decoder(:,1);
 
 % Scale to get a set percentage of threshold hits
-threshold = 0.8;
+threshold = 1.7;
 goal_threshAchieved = 0.3; % goal of what fraction of fake cursor trials reach threshold
 
 %%
@@ -302,7 +303,7 @@ trialStuff.condProbs = 'N/A';
 trialStuff.homogeneousBlockSize = 'N/A';
 
 %%
-dir = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220806';
+dir = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221012\analysis_data';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 

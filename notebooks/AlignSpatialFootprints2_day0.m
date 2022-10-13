@@ -11,20 +11,23 @@
 % % refImOld variable should be named: 'refImOld'
 
 % Use day N-1 or day 0
-dir_Fall = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322\baseline\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data\day0_analysis\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 % Fall variable should be named: 'Fall' (from S2p; contains stat file)
 load([dir_Fall '\' fileName_Fall]);
 
-% Use day N (today)
-directory_today = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322\baseline';
-fileName_movie = 'file_000';
+directory_zstack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data';
+stack_beforeWarp = load([directory_zstack , '\stack.mat']);
+
+% Use day 0
+directory_today = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221012\scanimage_data\baseline';
+fileName_movie = 'baseline_00';
 %%
 % path_spatialFootprints = 'D:\\RH_local\\data\\scanimage data\\round 5 experiments\\mouse 2_6\\20210410_test\\analysis_lastNight\\spatial_footprints_aligned.h5';
 
 %%
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\round_6_experiments\mouse_1_19\scanimage_data\20220322\analysis_day0';
+directory_weights = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data\day0_analysis';
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
 %% Import and downsample movie
@@ -281,7 +284,7 @@ for ii = 1:length(cellNumsToUse)
         spatial_footprints_weighted(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj) .* cellWeightings(ii);
     end
 end
-
+%%
 figure;
 imshowpair(squeeze(max(spatial_footprints , [],1))  ,  ...
     squeeze(max(spatial_footprints_weighted , [],1)), 'montage')
@@ -345,6 +348,14 @@ imshowpair(D_field(:,:,1) , D_field(:,:,2))
 % spatial_footprints_all2 = squeeze(max(baselineStuff2.spatial_footprints,[],1));
 % figure;
 % imagesc(spatial_footprints_all2)
+
+%% Warp the zstack images to the current session
+stack_warped = stack_beforeWarp.stack;
+for ii = 1:size(stack_beforeWarp.stack.stack_avg, 1)
+    stack_warped.stack_avg(ii,:,:)= imwarp(squeeze(stack_beforeWarp.stack.stack_avg(ii,:,:)) , D_field);
+end
+
+imshowpair(squeeze(stack_beforeWarp.stack.stack_avg(3,:,:)), squeeze(stack_warped.stack_avg(3,:,:)))
 %% new 'tall' stuff (short and fat now)
 cell_sizes = nan(size(spatial_footprints,1),1);
 spatial_footprints_warped = spatial_footprints;
@@ -415,11 +426,11 @@ spatial_footprints_warped_all(sub2ind([frame_height,frame_width] , spatial_footp
 spatial_footprints_warped_weighted_all = zeros(frame_height , frame_width);
 spatial_footprints_warped_weighted_all(sub2ind([frame_height,frame_width] , spatial_footprints_tall_warped_weighted(~SPT_warped_idxNaN,3) , spatial_footprints_tall_warped_weighted(~SPT_warped_idxNaN,2))) = spatial_footprints_tall_warped_weighted(~SPT_warped_idxNaN,4);
 
-
+%%
 figure;
-imshowpair(real(spatial_footprints_all .^0.3) , real(spatial_footprints_warped_weighted_all .^0.1))
-figure;
-imshow(spatial_footprints_warped_weighted_all ,[])
+imshowpair(real(spatial_footprints_all .^1) , real(spatial_footprints_warped_all .^1))
+% figure;
+% imshow(spatial_footprints_warped_weighted_all ,[])
 
 %% Transofrm coordinate indices
 for ii = 1:numel(cellNumsToUse)
@@ -479,6 +490,9 @@ imagesc(log(abs(refIm_crop_conjFFT_shift)))
 
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^1  )
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^0.3)
+
+%%
+figure; imshow(spatial_footprints_all_weighted*3)
 
 %%
 clear baselineStuff
@@ -628,9 +642,14 @@ baselineStuff.ROIs.cellWeightings_tall_warped = cellWeightings_tall_warped;
 
 %%
 baselineStuff.framesForMeanImForMC = [];
-path_save = [directory_weights, '\baselineStuff_day0'];
+% path_save = [directory_weights, '\baselineStuff_day0'];
+path_save = [directory_today, '\baselineStuff_day0'];
 save(path_save, 'baselineStuff','-v7.3')
 disp(['Saved baselineStuff to:  ' ,path_save]) 
+
+path_stack_warped =  [directory_today, '\stack_warped.mat'];
+save(path_stack_warped, 'stack_warped');
+disp(['Saved warped stack to:  ' ,path_stack_warped]) 
 % save(['F:\RH_Local\Rich data\scanimage data\mouse 1.31\baselineStuff'], 'baselineStuff')
 % save([directory, '\motionCorrectionRefImages'], 'motionCorrectionRefImages')
 %% FUNCTIONS

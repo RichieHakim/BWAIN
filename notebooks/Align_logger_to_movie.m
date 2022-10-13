@@ -9,7 +9,7 @@
 % -  indexWithNaNs.m
 %% Import movie
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225\exp';
+directory_movie = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\scanimage_data\20220811\exp';
 fileName_movie = 'exp_';
 
 frames_totalExpected = 108000;
@@ -81,7 +81,7 @@ end
 movie_hash = compute_hashSequence(movie_all,1);
 %%
 % Import logger
-dir_logger = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225';
+dir_logger = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220811';
 
 fileName_logger = 'logger.mat';
 load([dir_logger '\' fileName_logger]);
