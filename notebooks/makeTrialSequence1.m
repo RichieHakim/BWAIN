@@ -11,68 +11,56 @@ numConditions = length(condition_names);
 %% Make fake decoder data for each trial
 
 % Import a logger to steal decoder output for fake feedback decoder
-path_fakeData = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221011\analysis_data\logger.mat';
+path_fakeData = 'D:\RH_local\data\BMI_cage_1511_3\mouse_B\20221028\analysis_data\logger.mat';
 load(path_fakeData)
 
 sample_rate = 30; % in Hz, rough imaging speed
 Fs = sample_rate;
-maxTrialDuration = 60 * Fs; % Make this longer than the actual trial duration
+maxTrialDuration = 20 * Fs; % Make this the actual trial duration
 
 fakeDecoderData = logger.decoder(:,1);
+fakeDecoderData = fakeDecoderData(isnan(fakeDecoderData)==0);
 
 % Scale to get a set percentage of threshold hits
-threshold = 1.7;
-goal_threshAchieved = 0.3; % goal of what fraction of fake cursor trials reach threshold
-
-%%
-
-learning_rate = 0.01;
-
+threshold = 1.5;
+goal_threshAchieved = 0.4; % goal of what fraction of fake cursor trials reach threshold
+%% Reshuffling optimization
 thresh_check_avg = inf;
 thresh_check_avg_first10 = inf;
 
 obj_fun = @(thresh_avg) (thresh_avg - goal_threshAchieved);
 criterion_fun = @(thresh_avg , thresh) abs(obj_fun(thresh_avg)) < thresh;
 
-% the thing below looks weird because it is weird. It is basically randomly
-% selecting time points from the fakeData cursor trace and then scaling
-% them all by a single constant factor. The scaling factor is optimized
-% over an objective function that makes the average number of threshold
-% crossing events == goal_thresholdAchieved. It does this both for the
-% average of the first 10 frames as well as the average of all of them.
-% There will be situations where it's actually impossible to meet both
-% objectives, so if the wheels are just spinning (set as just a large
-% iteration number), it resamples the fakeCursors and tries again.
-% To troubleshoot, it's useful to look at the loss_rolling curve
-clear loss_rolling
 cc = 1;
-while ~(criterion_fun(thresh_check_avg_first10 , 0.01) & criterion_fun(thresh_check_avg , 0.03))
-    if mod(cc,500)==1
-        acceptable_onsets = find(fakeDecoderData(1:end-maxTrialDuration) < 0);
-        acceptable_onsets_shuffled = acceptable_onsets(randperm(length(acceptable_onsets)));
-        clear fakeCursors
-        for ii = 1:maxNumTrials
-            %     acceptable_onsets(ii)
-            fakeCursors(ii,:) = fakeDecoderData(acceptable_onsets_shuffled(ii):acceptable_onsets_shuffled(ii)+maxTrialDuration);
-        end
-%         cc=1;
-        fakeCursors_scaled = fakeCursors;
+loss_rolling = NaN(10000,1);
+acceptable_onsets = find(fakeDecoderData(1:end-maxTrialDuration) < 0);
+idx_toUpdate = [1:maxNumTrials];
+fakeCursors = NaN(maxNumTrials, maxTrialDuration);
+while ~(criterion_fun(thresh_check_avg_first10 , 0.01) && criterion_fun(thresh_check_avg , 0.03))
+    acceptable_onsets_shuffled = acceptable_onsets(randperm(length(acceptable_onsets)));
+    for ii = 1:length(idx_toUpdate)
+        fakeCursors(idx_toUpdate(ii),:) = fakeDecoderData(acceptable_onsets_shuffled(ii):acceptable_onsets_shuffled(ii)+maxTrialDuration-1);
     end
 
-    %     abs(thresh_check_avg_first10 - goal_threshAchieved)
-    thresh_check = max(fakeCursors_scaled,[],2) > threshold;
+    thresh_check = max(fakeCursors,[],2) > threshold;
     thresh_check_avg = mean(thresh_check);
     thresh_check_avg_first10 = mean(thresh_check(1:10));
-    
     loss_rolling(cc) = ((obj_fun(thresh_check_avg_first10))  +  (obj_fun(thresh_check_avg)));
+
+    side_tooHigh = thresh_check_avg > goal_threshAchieved; % 0 for sub thresh trials, 1 for supra thresh trials
+    idx_toUpdate = find(thresh_check == side_tooHigh);
     
-    fakeCursors_scaled = fakeCursors_scaled * (1 - learning_rate*loss_rolling(cc));
-    if mod(cc,500)==0
-        disp(['working... iter: ' , num2str(cc)])
+    if mod(cc,5)==0
+        disp(['working... iter: ' , num2str(cc), ' loss: ', num2str(loss_rolling(cc)), ' frac_thresh: ', num2str(thresh_check_avg), ' frac_threshFirst10: ', num2str(thresh_check_avg_first10)])
     end
     cc = cc+1;
 end
 
+%%
+fakeCursors_rs = reshape(fakeCursors',1,[])';
+figure;
+plot([1/Fs:length(fakeCursors_rs)]/Fs, fakeCursors_rs)
+%% plotting
 figure('Position' , [100,300 , 1000,800]);
 
 subplot(2,2,1)
@@ -87,7 +75,7 @@ title('plot 1: full cursor , plot2: acceptable trial starts')
 subplot(2,2,3); 
 imagesc(fakeCursors(1:100,:))
 
-scale_factor = mean(mean(fakeCursors_scaled ./ fakeCursors))
+% scale_factor = mean(mean(fakeCursors_scaled ./ fakeCursors))
 thresh_check_avg
 thresh_check_avg_first10
 subplot(2,2,4);
@@ -98,13 +86,15 @@ xlabel('iter #')
 trialStuff.fakeFeedback.path_fakeData = path_fakeData;
 trialStuff.fakeFeedback.fakeDecoderInputData = fakeDecoderData;
 trialStuff.fakeFeedback.acceptable_onsets = acceptable_onsets;
+
 trialStuff.fakeFeedback.fakeCursors = fakeCursors;
 trialStuff.fakeFeedback.threshold = threshold;
 trialStuff.fakeFeedback.goal_threshAchieved = goal_threshAchieved;
-trialStuff.fakeFeedback.fakeCursors = fakeCursors_scaled;
+
+% trialStuff.fakeFeedback.fakeCursors = fakeCursors_scaled;
 trialStuff.fakeFeedback.thresh_check_avg = thresh_check_avg;
 trialStuff.fakeFeedback.thresh_check_avg_first10 = thresh_check_avg_first10;
-trialStuff.fakeFeedback.scale_factor = scale_factor;
+% trialStuff.fakeFeedback.scale_factor = scale_factor;
 
 
 %% EXPERIMENTS:
@@ -189,7 +179,7 @@ cond_bool = [[1,1,1] ;...
              [0,1,0]];
 numConditions = size(cond_bool,1);
 
-prob_cond = [0.8;0.1;0.1];
+prob_cond = [0.9;0.05;0.05];
 
 hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
 
@@ -303,10 +293,181 @@ trialStuff.condProbs = 'N/A';
 trialStuff.homogeneousBlockSize = 'N/A';
 
 %%
-dir = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221012\analysis_data';
+dir = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\analysis_data';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 
+% %%
+% Fs = 30;
+% f_highPass = 2; %% in hz
+% trace = logger.decoder(:,1);
+% noise_goal = noiseAmplitude(trace, Fs, f_highPass);
+% 
+% %%
+% % fn_loss = @(x) (noise_goal - noiseAmplitude(trace/2 + x*randn(size(trace, 1), 1), Fs, f_highPass))^2;
+% fn_loss = @(x) (noise_goal - noiseAmplitude(addNoise(trace/2, x, Fs, f_highPass), Fs, f_highPass))^2;
+% 
+% % options = optimset('Display', 'iter', 'MaxIter', 10, 'TolX', 1e-0);
+% options = optimset('MaxIter', 10, 'MaxFunEvals', 10, 'TolX', 1e-2);
+% 
+% opt_noise_val = fminbnd(fn_loss,0,2, options)
+% 
+% %%
+% figure;
+% plot(opt_noise_val*randn(size(trace,1), 1) + trace/2)
+% hold on
+% plot(trace)
+% 
+% figure;
+% plot(safeHighPass(opt_noise_val*randn(size(trace,1), 1) + trace/2, Fs, f_highPass))
+% hold on
+% plot(safeHighPass(trace, Fs, f_highPass))
+% 
+% %%
+% var(safeHighPass(opt_noise_val*randn(size(trace,1), 1) + trace/2, Fs, f_highPass))
+% var(safeHighPass(trace, Fs, f_highPass))
+% %%
+% figure;
+% hold on
+% plot(trace)
+% plot(fakeCursors_scaled)
+%%
+% figure;
+% hold on
+% for ii = [0:0.01:2]
+% % plot(ii, fn_loss(ii), '.')
+% % fn_loss(ii)
+% highpass(x, f_hp, Fs);
+% end
 
+%%
 
+% %%
+% 
+% % Parameters: Scaling optimization
+% learning_rate = 0.01;
+% 
+% thresh_check_avg = inf;
+% thresh_check_avg_first10 = inf;
+% 
+% obj_fun = @(thresh_avg) (thresh_avg - goal_threshAchieved);
+% criterion_fun = @(thresh_avg , thresh) abs(obj_fun(thresh_avg)) < thresh;
+% 
+% % Parameters: Noise optimization
+% Fs = 30;
+% f_highPass = 2; %% in hz
+% noise_goal = noiseAmplitude(fakeDecoderData, Fs, f_highPass);
+% % fn_loss = @(x) (noise_goal - noiseAmplitude(addNoise(trace*scale_factor, x, Fs, f_highPass), Fs, f_highPass))^2;
+% options_noiseOptimizer = optimset('MaxIter', 10, 'MaxFunEvals', 100, 'TolX', 1e-1);
+% 
+% 
+% 
+% % the thing below looks weird because it is weird. It is basically randomly
+% % selecting time points from the fakeData cursor trace and then scaling
+% % them all by a single constant factor. The scaling factor is optimized
+% % over an objective function that makes the average number of threshold
+% % crossing events == goal_thresholdAchieved. It does this both for the
+% % average of the first 10 frames as well as the average of all of them.
+% % There will be situations where it's actually impossible to meet both
+% % objectives, so if the wheels are just spinning (set as just a large
+% % iteration number), it resamples the fakeCursors and tries again.
+% % To troubleshoot, it's useful to look at the loss_rolling curve
+% cc = 1;
+% loss_rolling = NaN(10000,1);
+% while ~(criterion_fun(thresh_check_avg_first10 , 0.01) && criterion_fun(thresh_check_avg , 0.03))
+%     if mod(cc,500)==1
+%         acceptable_onsets = find(fakeDecoderData(1:end-maxTrialDuration) < 0);
+%         acceptable_onsets_shuffled = acceptable_onsets(randperm(length(acceptable_onsets)));
+%         clear fakeCursors
+%         for ii = 1:maxNumTrials
+%             %     acceptable_onsets(ii)
+%             fakeCursors(ii,:) = fakeDecoderData(acceptable_onsets_shuffled(ii):acceptable_onsets_shuffled(ii)+maxTrialDuration);
+%         end
+% %         cc=1;
+%         fakeCursors_scaled = fakeCursors;
+%     end
+% 
+%     %     abs(thresh_check_avg_first10 - goal_threshAchieved)
+%     thresh_check = max(fakeCursors_scaled,[],2) > threshold;
+%     thresh_check_avg = mean(thresh_check);
+%     thresh_check_avg_first10 = mean(thresh_check(1:10));
+%         
+%     loss_rolling(cc) = ((obj_fun(thresh_check_avg_first10))  +  (obj_fun(thresh_check_avg)));
+%     
+%     fakeCursors_scaled = fakeCursors_scaled * (1 - learning_rate*loss_rolling(cc));
+%     
+% %     if mod(cc,20)==0
+% % %         fn_loss = @(x) (noise_goal - noiseAmplitude(addNoise(fakeCursors_scaled*scale_factor, x, Fs, f_highPass), Fs, f_highPass))^2;
+% %         fn_loss = @(x) (noise_goal - noiseAmplitude(addNoise(reshape(fakeDecoderData',1,[])'*scale_factor, x, Fs, f_highPass), Fs, f_highPass))^2;
+% %         opt_noise_val = fminbnd(fn_loss,0,2,options_noiseOptimizer);
+% %         fakeCursors_scaled = addNoise(reshape(fakeCursors_scaled',1,[])', opt_noise_val, Fs, f_highPass);
+% %         fakeCursors_scaled = reshape(fakeCursors_scaled,[],500)';
+% % 
+% % %         fakeCursors_scaled = addNoise(fakeCursors_scaled, opt_noise_val, Fs, f_highPass);
+% %     end
+%     
+%     if mod(cc,50)==0
+%         disp(['working... iter: ' , num2str(cc), ' loss: ', num2str(loss_rolling(cc)), ' frac_thresh: ', num2str(thresh_check_avg), ' frac_threshFirst10: ', num2str(thresh_check_avg_first10)])
+%     end
+%     cc = cc+1;
+% end
+% 
+% % fakeCursors_beforenoise = fakeCursors_scaled;
+% % 
+% % scale_factor = nanmean(mean(fakeCursors_scaled ./ fakeCursors));
+% % 
+% % % noise amplitude optimization
+% % Fs = 30;
+% % f_highPass = 1; %% in hz
+% % trace = logger.decoder(:,1);
+% % noise_goal = noiseAmplitude(trace, Fs, f_highPass);
+% % 
+% % % fn_loss = @(x) (noise_goal - noiseAmplitude(addNoise(trace*scale_factor, x, Fs, f_highPass), Fs, f_highPass))^2
+% % 
+% % 
+% % fn_loss = @(x) (noise_goal - noiseAmplitude(addNoise(trace*scale_factor, x, Fs, f_highPass), Fs, f_highPass))^2;
+% % %     (goal_threshAchieved - (sum(max(reshape(addNoise(reshape(fakeCursors_scaled',1,[])', x, Fs, f_highPass), [], 500),[],2)>threshold)/maxNumTrials))^2;
+% % 
+% % % options = optimset('Display', 'iter', 'MaxIter', 10, 'TolX', 1e-0);
+% % options_noiseOptimizer = optimset('MaxIter', 10, 'MaxFunEvals', 100, 'TolX', 1e-2);
+% % 
+% % opt_noise_val = fminbnd(fn_loss,0,2,options_noiseOptimizer);
+% % 
+% % fakeCursors_scaled = addNoise(reshape(fakeCursors_scaled',1,[])', opt_noise_val, Fs, f_highPass);
+% % fakeCursors_scaled = reshape(fakeCursors_scaled,[],500)';
+% % 
+% % fakeCursors_afternoise = fakeCursors_scaled;
+% % 
+% % % final fakeCursors_scaled iter
+% % thresh_check_avg = inf;
+% % thresh_check_avg_first10 = inf;
+% % disp("Optimizing the cursor after noise addition...")
+% % cc=1;
+% % while ~(criterion_fun(thresh_check_avg_first10 , 0.01) & criterion_fun(thresh_check_avg , 0.03))
+% %     thresh_check = max(fakeCursors_scaled,[],2) > threshold;
+% %     thresh_check_avg = mean(thresh_check);
+% %     thresh_check_avg_first10 = mean(thresh_check(1:10));
+% %     
+% %     loss_rolling(cc) = ((obj_fun(thresh_check_avg_first10))  +  (obj_fun(thresh_check_avg)));
+% %     
+% %     fakeCursors_scaled = fakeCursors_scaled * (1 - learning_rate*loss_rolling(cc));
+% %     if mod(cc, 100)==0
+% %         disp(['post noise scaling. iter: ', num2str(cc), ', loss: ', num2str(loss_rolling(cc))])
+% %     end
+% %     cc = cc+1;
+% % end
 
+%%
+function trace_out = addNoise(trace_in, gain, Fs, f_hp)
+    trace_out = trace_in + gain * safeHighPass(trace_in, Fs, f_hp);
+end
+
+function [v] = noiseAmplitude(x, Fs, f_hp)
+    v = var(safeHighPass(x, Fs, f_hp));
+end
+
+function [v] = safeHighPass(x, Fs, f_hp)
+    x(isnan(x)) = 0;
+    v = highpass(x, f_hp, Fs);
+%     v = highpass(x, f_hp, Fs, 'ImpulseResponse', 'fir');
+end

@@ -1,10 +1,10 @@
-function outputVoltageToTeensy = userFunction_Alignment_3D_1(source, event, varargin)
+function userFunction_Alignment_3D_1(source, event, varargin)
 %% Variable stuff
 global registrationImage refIm_crop_conjFFT_shift img_MC_moving ...
     img_MC_moving_rolling loadedCheck_registrationImage counter_frameNum ...
     indRange_y_crop indRange_x_crop
 
-directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data';
+directory = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
 
 currentImage = source.hSI.hDisplay.lastFrame{1};
 
@@ -22,10 +22,11 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
 % %     registrationImage = eval(['stack.' , file_fieldName{1}]);
 %     registrationImage = eval(['tmp.stack.' , 'stack_avg']);
 
-    type_stack = 'stack';
+%     type_stack = 'stack';
 %     type_stack = 'stack_warped';
+    type_stack = 'stack_sparse';
     tmp = load([directory , '\', type_stack, '.mat']);
-    disp(['LOADED zstack from', directory , '\stack_warped.mat'])
+    disp(['LOADED zstack from', directory , '\stack.mat'])
     registrationImage = eval(['tmp.', type_stack, '.stack_avg']);
     
     clear refIm_crop_conjFFT_shift_centerIdx
@@ -54,6 +55,13 @@ if isempty(counter_frameNum)
     disp('hi')
     counter_frameNum = 1;
 end
+
+% Gyu 20221026
+if isnan(counter_frameNum)
+    disp('counter is NaN')
+    counter_frameNum = 1;
+end
+
 if counter_frameNum == 1
     disp('frameNum = 1')
 end
@@ -95,6 +103,7 @@ img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
 % figure; imagesc(image_toUse)
 
 xShift = NaN(n_slices,1);
+
 yShift = NaN(n_slices,1);
 cxx = NaN(n_slices, indRange_x_crop(2) - indRange_x_crop(1) +1);
 cyy = NaN(n_slices, indRange_y_crop(2) - indRange_y_crop(1) +1);
@@ -122,17 +131,17 @@ MC_corr = max(cxx, [], 2);
 % img_ROI_corrected{ii} = currentImage((baselineStuff.idxBounds_ROI{ii}(1,2):baselineStuff.idxBounds_ROI{ii}(2,2)) +round(yShift(ii)) ,...
 %     (baselineStuff.idxBounds_ROI{ii}(1,1):baselineStuff.idxBounds_ROI{ii}(2,1)) +round(xShift(ii))); % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
 
-if abs(xShift) >10
-    xShift = 0;
-end
-if abs(yShift) >10
-    yShift = 0;
-end
+% if abs(xShift) >10
+%     xShift = 0;
+% end
+% if abs(yShift) >10
+%     yShift = 0;
+% end
 
 %% Plotting
 
-plotUpdatedOutput2([xShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 3)
-plotUpdatedOutput3([yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 3)
+plotUpdatedOutput2([yShift(3)', xShift(3)'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 3)
+% plotUpdatedOutput3([yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 3)
 
 if counter_frameNum > 15
     %     if counter_frameNum > 1

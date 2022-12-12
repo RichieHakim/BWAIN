@@ -1,18 +1,16 @@
-path_stack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\scanimage_data\20221010\zstack\zstack_00002_00001.tif';
-path_save = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\analysis_data\20221010\stack.mat';
+path_stack = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\scanimage_data\zstack\zstack_00001_00001.tif';
+path_save = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\stack_dense.mat';
 
 num_frames_per_slice = 60;
-num_slices = 5;
+num_slices = 31;
 num_volumes = 10;
-step_size_um = 5;
+step_size_um = 0.5;
 centered = 1;
 % FAST
 % STEP
 % # Frames/File 100000
 
 frames_to_discard_per_slice = 30; % discards this many frames from beginning due to jitter from piezo
-
-% zCorrPtile = 10;
 
 stack.num_frames_per_slice = num_frames_per_slice;
 stack.step_size_um = step_size_um;
@@ -40,6 +38,13 @@ figure; imagesc(inputCropped)
 inputMasked = maskImage(input, 20,10);
 figure; imagesc(abs(fft2(inputMasked)))
 
+%%
+stack_sparse = stack;
+stack_sparse.step_size_um = 3;
+stack_sparse.stack_avg = stack_sparse.stack_avg([4,10,16,22,28],:,:);
+
+path_save_sparse = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\stack_sparse.mat';
+save(path_save_sparse, 'stack_sparse')
 %%
 function image = maskImage(image, border_outer, border_inner)
     border_outer = int64(border_outer);

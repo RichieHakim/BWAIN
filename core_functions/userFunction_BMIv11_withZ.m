@@ -16,23 +16,76 @@ global counter_frameNum counter_trialIdx counter_CS_threshold counter_timeout co
     registrationImage referenceDiffs refIm_crop_conjFFT_shift refIm_crop indRange_y_Crop indRange_x_Crop...
     img_MC_moving_rolling_z refIm_crop_conjFFT_shift_masked counter_last_z_correction...
     counter_quiescenceHold...
+    x_idx_raw y_idx_raw lam_vals...
 
 persistent baselineStuff trialStuff 
 
+%% == USER SETTINGS ==
+% SETTINGS: General
+frameRate                   = 30;
+duration_plotting           = 30 * frameRate; % ADJUSTABLE: change number value (in seconds). Duration of x axis in plots
+duration_session            = 30*60*60; % ADJUSTABLE: change number value (in seconds/minutes)
+win_smooth                  = 4; % smoothing window (in frames)
+show_MC_ref_images          = 0;
+threshold_value             = 1.5;
+
+% SETTINGS: Motion correction
+numFramesToAvgForMotionCorr = 60;
+numFramesToMedForZCorr      = 30*4;
+zCorrFrameInterval          = 15; 
+interval_z_correction       = 60*frameRate;
+max_z_delta                 = 0.5;
+
+% SETTINGS: Cursor
+range_cursor = [-threshold_value , threshold_value *1.5];
+% range_cursor = [-threshold_value threshold_value];
+range_freqOutput = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
+voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
+
+% SETTINGS: Reward
+reward_duration = 64; % in ms calibrated to 3.6 uL/reward 
+reward_delay = 0; % in ms
+% reward_delay = 5; % in ms
+LED_duration = 0.2; % in s
+LED_ramp_duration = 0.1; % in s
+
+% SETTINGS: Mode
+% mode = 'baseline';
+mode = 'BMI';
+
+% SETTINGS: Trials
+% below in unit seconds
+duration_trial          = 20;
+duration_timeout        = 4;
+duration_threshold      = 0.066;
+duration_ITI    = 3;
+duration_rewardDelivery = 1.00; % before it was .2 10/10/22: Controls how long the reward tone is
+threshold_quiescence    = 0;
+duration_quiescenceHold = 0.5;  % in seconds
+
+% SETTINGS: Rolling stats
+duration_rollingStats       = round(frameRate * 60 * 15);
+subSampleFactor_runningVals = 1;
+numSamples_rollingStats = round(duration_rollingStats/subSampleFactor_runningVals);
+duration_buildingUpStats    = round(frameRate * 60 * 2);
+
+%% IMPORT FILES
 currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221012\analysis_data';
-directory_zstack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data';
+directory = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\analysis_data';
 maskPref = 1;                                                                     
 borderOuter = 20;                                                                
 borderInner = 10;      
 
-if ~isstruct(baselineStuff)
+if ~isstruct(baselineStuff) && strcmp(mode, 'BMI')
     path_baselineStuff = [directory , '\baselineStuff.mat'];
     load(path_baselineStuff);
     disp(['LOADED baselineStuff from:  ' , path_baselineStuff])
+    x_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2));
+    y_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3));
+    lam_vals = single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4));
 end
 if ~isstruct(trialStuff)
     path_trialStuff = [directory , '\trialStuff.mat'];
@@ -42,14 +95,14 @@ end
 
 % loadedCheck_registrationImage = []
 if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1 | isempty(registrationImage) | isempty(refIm_crop_conjFFT_shift) | isempty(indRange_y_Crop)
-% if 1
-%     loadedCheck_registrationImage
-%     size(registrationImage)
+    if strcmp(mode, 'BMI')
+        type_stack = 'stack_warped';
+    elseif strcmp(mode, 'baseline')
+        type_stack = 'stack_sparse';
+    end
 %     type_stack = 'stack_warped';
-    type_stack = 'stack';
-%     tmp = load([directory_zstack , '\stack.mat']);
-    tmp = load([directory_zstack , '\', type_stack, '.mat']);
-    disp(['LOADED zstack from', directory_zstack , '\stack_warped.mat'])
+    tmp = load([directory , '\', type_stack, '.mat']);
+    disp(['LOADED zstack from', directory , '\', type_stack, '.mat'])
     registrationImage = eval(['tmp.', type_stack, '.stack_avg']);
     referenceDiffs = eval(['tmp.', type_stack,'.step_size_um']);
     loadedCheck_registrationImage=1;
@@ -63,10 +116,7 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
             refIm_crop_conjFFT_shift_masked(ii,:,:) = maskImage(squeeze(refIm_crop_conjFFT_shift(ii,:,:)), borderOuter, borderInner);
         end
     end
-%     size(refIm_crop_conjFFT_shift)
     
-%     figure;
-%     imagesc(squeeze(registrationImage(3,:,:)))
     registrationImage = registrationImage(2:4,:,:);
     refIm_crop = refIm_crop(2:4,:,:);
     refIm_crop_conjFFT_shift = refIm_crop_conjFFT_shift(2:4,:,:);
@@ -75,58 +125,11 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
     disp('Loaded z-stack')
 end
 
-%% == USER SETTINGS ==
-% ROI vars
-frameRate                   = 30;
-duration_plotting           = 30 * frameRate; % ADJUSTABLE: change number value (in seconds). Duration of x axis in plots
-duration_session            = frameRate * 60 * 60; % ADJUSTABLE: change number value (in seconds/minutes)
-win_smooth                  = 4; % smoothing window (in frames)
-% F_baseline_prctile          = 30; % percentile to define as F_baseline of cells
-show_MC_ref_images          = 0;
-
-numFramesToAvgForMotionCorr = 60;
-% numFramesToMedForZCorr      = 30;
-% zCorrFrameInterval          = 30; 
-numFramesToMedForZCorr      = 30*4;
-zCorrFrameInterval          = 15; 
-%zCorrPtile                  = 10;
-interval_z_correction       = 20*frameRate;
-% max_z_delta                 = referenceDiffs/2;
-max_z_delta                 = 1;
-
-threshold_value             = 1.7;
-
-% numCells = max(baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,1));
-numCells = baselineStuff.ROIs.num_cells;
-
-% range_cursor = [-threshold_value , threshold_value *1.5];
-range_cursor = [-threshold_value threshold_value];
-range_freqOutput = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
-voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
-
-reward_duration = 64; % in ms calibrated to 3.6 uL/reward 
-reward_delay = 0; % in ms
-% reward_delay = 5; % in ms
-LED_duration = 0.2; % in s
-LED_ramp_duration = 0.1; % in s
-
-% directory = [baselineStuff.directory, '\expParams.mat'];
-% directory = ['F:\RH_Local', '\expParams.mat'];
-%% Trial Structure settings & Rolling Stats settings
-% below in unit seconds
-duration_trial          = 20;
-duration_timeout        = 4;
-duration_threshold      = 0.066;
-duration_ITI    = 3;
-duration_rewardDelivery = 1.00; % before it was .2 10/10/22: Controls how long the reward tone is
-
-duration_rollingStats       = round(frameRate * 60 * 15);
-subSampleFactor_runningVals = 1;
-numSamples_rollingStats = round(duration_rollingStats/subSampleFactor_runningVals);
-duration_buildingUpStats    = round(frameRate * 60 * 1);
-
-threshold_quiescence    = 0;
-duration_quiescenceHold = 0.5;  % in seconds
+if strcmp(mode, 'BMI')
+    numCells = baselineStuff.ROIs.num_cells;
+elseif strcmp(mode, 'baseline')
+    numCells = 1;
+end
 
 %% == Session Starting & counting ==
 
@@ -174,13 +177,25 @@ end
 if (counter_frameNum >= 0) && (mod(counter_frameNum, zCorrFrameInterval) == 0)
     img_MC_moving_rolling_z(:,:,mod(counter_frameNum/zCorrFrameInterval ,numFramesToMedForZCorr)+1) = img_MC_moving;
 end
-[delta, frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
-    maskPref, borderOuter, borderInner);
 
-[xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , baselineStuff.MC.meanImForMC_crop_conjFFT_shift, maskPref, borderOuter, borderInner);
+if ~CE_trial
+    [delta, frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
+        maskPref, borderOuter, borderInner);
+else
+    delta=0;
+    frame_corrs = [0,0,0];
+end
+
+if strcmp(mode, 'BMI')
+    [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , baselineStuff.MC.meanImForMC_crop_conjFFT_shift, maskPref, borderOuter, borderInner);
+elseif strcmp(mode, 'baseline')
+    [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift_masked(2,:,:)), maskPref, borderOuter, borderInner);
+end
 MC_corr = max(cxx);
 
-
+% delta=0;
+% frame_corrs=[0,0,0];
+% 
 % xShift = 0;
 % yShift = 0;
 % MC_corr = 0;
@@ -193,93 +208,97 @@ if abs(yShift) >60
     yShift = 0;
 end
 %% == EXTRACT DECODER Product of Current Image and Decoder Template ==
+%     tic
+if strcmp(mode, 'BMI')
+    x_idx     =  x_idx_raw + xShift;
+    y_idx     =  y_idx_raw + yShift;
 
-% New extractor
-% tic
-x_idx     =  baselineStuff.ROIs.spatial_footprints_tall_warped(:,2) +xShift;
-y_idx     =  baselineStuff.ROIs.spatial_footprints_tall_warped(:,3) +yShift;
+    idx_safe = single((x_idx < 1024) &...
+        (x_idx > 0) & ...
+        (y_idx < 512) & ...
+        (y_idx > 0));
+    % idx_safe_nan = idx_safe;
+    % idx_safe_nan(idx_safe_nan==0) = NaN;
 
-idx_safe = single((x_idx < 1024) &...
-    (x_idx > 0) & ...
-    (y_idx < 512) & ...
-    (y_idx > 0));
-% idx_safe_nan = idx_safe;
-% idx_safe_nan(idx_safe_nan==0) = NaN;
+    % x_idx(isnan(x_idx)) = 1;
+    % y_idx(isnan(y_idx)) = 1;
 
-% x_idx(isnan(x_idx)) = 1;
-% y_idx(isnan(y_idx)) = 1;
-
-x_idx(~idx_safe) = 1;
-y_idx(~idx_safe) = 1;
-
-tall_currentImage = single(currentImage(sub2ind(size(currentImage), y_idx , x_idx)));
-% toc
-% TA_CF_lam = tall_currentImage .* baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-TA_CF_lam = tall_currentImage .* baselineStuff.ROIs.spatial_footprints_tall_warped(:,4) .* idx_safe;
-TA_CF_lam_reshape = reshape(TA_CF_lam , baselineStuff.ROIs.cell_size_max , numCells);
-vals_neurons = nansum( TA_CF_lam_reshape , 1 );
-% toc
-%% == ROLLING STATS ==
-if counter_frameNum >=0
-    logger_valsROIs(counter_frameNum,:) = vals_neurons;
+    x_idx(~idx_safe) = 1;
+    y_idx(~idx_safe) = 1;
+    
+    tall_currentImage = single(currentImage(sub2ind(size(currentImage), y_idx , x_idx)));
+    TA_CF_lam = tall_currentImage .* lam_vals .* idx_safe;
+    TA_CF_lam_reshape = reshape(TA_CF_lam , baselineStuff.ROIs.cell_size_max , numCells);
+    vals_neurons = nansum( TA_CF_lam_reshape , 1 );
+elseif strcmp(mode, 'baseline')
+    vals_neurons = NaN;
 end
+% toc
 
+%% == ROLLING STATS ==
 if CE_experimentRunning
-    if mod(counter_frameNum-1 , subSampleFactor_runningVals) == 0
-        next_idx = mod(counter_runningVals-1 , numSamples_rollingStats)+1;
-        vals_old = runningVals(next_idx , :);
-        runningVals(next_idx,:) = vals_neurons;
-        [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
-        counter_runningVals = counter_runningVals+1;
-    end
-    if counter_frameNum == 1
-        F_mean = vals_neurons;
-        F_var = ones(size(F_mean));
-    end
-    
-    F_std = sqrt(F_var);
-    %     F_std = nanstd(runningVals , [] , 1);
-    %     F_std = ones(size(vals_smooth));
-    F_std(F_std < 0.01) = inf;
-    %     F_mean = nanmean(runningVals , 1);
-    F_zscore = single((vals_neurons-F_mean)./F_std);
-    F_zscore(isnan(F_zscore)) = 0;
+    if strcmp(mode, 'BMI')
+        if mod(counter_frameNum-1 , subSampleFactor_runningVals) == 0
+            next_idx = mod(counter_runningVals-1 , numSamples_rollingStats)+1;
+            vals_old = runningVals(next_idx , :);
+            runningVals(next_idx,:) = vals_neurons;
+            [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
+            counter_runningVals = counter_runningVals+1;
+        end
+        if counter_frameNum == 1
+            F_mean = vals_neurons;
+            F_var = ones(size(F_mean));
+        end
 
-    cursor_brain_raw = F_zscore * baselineStuff.ROIs.cellWeightings';
-    logger.decoder(counter_frameNum,2) = cursor_brain_raw;
-    
-    next_idx = mod(counter_runningCursor-1 , duration_rollingStats)+1;
-    vals_old = running_cursor_raw(next_idx);
-    running_cursor_raw(next_idx) = cursor_brain_raw;
-    [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
-    counter_runningCursor = counter_runningCursor+1;
-    
-    if counter_frameNum >= win_smooth
-%         cursor_brain = mean(logger.decoder(counter_frameNum-(win_smooth-1):counter_frameNum,2));
-        cursor_brain = mean((logger.decoder(counter_frameNum-(win_smooth-1):counter_frameNum,2)-cursor_mean)./sqrt(cursor_var));
-    else
-        cursor_brain = cursor_brain_raw;
+        F_std = sqrt(F_var);
+        %     F_std = nanstd(runningVals , [] , 1);
+        %     F_std = ones(size(vals_smooth));
+        F_std(F_std < 0.01) = inf;
+        %     F_mean = nanmean(runningVals , 1);
+        F_zscore = single((vals_neurons-F_mean)./F_std);
+        F_zscore(isnan(F_zscore)) = 0;
+        
+        cursor_brain_raw = F_zscore * baselineStuff.ROIs.cellWeightings';
+        logger.decoder(counter_frameNum,2) = cursor_brain_raw;
+
+        next_idx = mod(counter_runningCursor-1 , duration_rollingStats)+1;
+        vals_old = running_cursor_raw(next_idx);
+        running_cursor_raw(next_idx) = cursor_brain_raw;
+        [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
+        counter_runningCursor = counter_runningCursor+1;
+
+        if counter_frameNum >= win_smooth
+    %         cursor_brain = mean(logger.decoder(counter_frameNum-(win_smooth-1):counter_frameNum,2));
+            cursor_brain = mean((logger.decoder(counter_frameNum-(win_smooth-1):counter_frameNum,2)-cursor_mean)./sqrt(cursor_var));
+        else
+            cursor_brain = cursor_brain_raw;
+        end
+    elseif strcmp(mode, 'baseline')
+        cursor_brain = -0.1;
     end
-    
+%     toc
 %% Check for overlap of ROIs and image (VERY SLOW)
-% 
-% % % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
-% % % size(y_tmp)
-% % CI = zeros(size(currentImage,1), size(currentImage,2));
-% % CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
-% 
-% WI = zeros(size(currentImage,1), size(currentImage,2));
-% % size(baselineStuff.ROIs.cellWeightings)
-% WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings .* F_zscore, 230, 1);
-% 
-% LI = zeros(size(currentImage,1), size(currentImage,2));
-% LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-% 
-% % CWI = CI .* WI;
-% % LCWI = CI .* LI .* WI;
-% LWI = LI .* WI;
-% plotUpdatedImagesc(LWI , [-1,4], 'test')
 
+    if (CE_rewardDelivery && counter_rewardDelivery<2) && strcmp(mode, 'BMI')
+        % % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
+        % % size(y_tmp)
+        % CI = zeros(size(currentImage,1), size(currentImage,2));
+        % CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
+
+        WI = zeros(size(currentImage,1), size(currentImage,2));
+        % size(baselineStuff.ROIs.cellWeightings)
+        WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings .* F_zscore, 230, 1);
+        % WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings, 230, 1);
+        % 
+        LI = zeros(size(currentImage,1), size(currentImage,2));
+        LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
+        % 
+        % % CWI = CI .* WI;
+        % LCWI = CI .* LI .* WI;
+        LWI = LI .* WI;
+        plotUpdatedImagesc(LWI , [-0.2,1], 'test')
+    end
+%     toc
 %% Trial prep
     trialType_cursorOn = trialStuff.condTrialBool(trialNum,1);
     trialType_feedbackLinked = trialStuff.condTrialBool(trialNum,2);
@@ -293,7 +312,7 @@ if CE_experimentRunning
         fakeFeedback_inUse = 0;
     end
     
-    CS_quiescence = algorithm_quiescence(cursor_brain, threshold_quiescence);
+    CS_quiescence = algorithm_quiescence(cursor_output, threshold_quiescence);
     CS_threshold = algorithm_thresholdState(cursor_output, threshold_value);
     
     %%  ===== TRIAL STRUCTURE =====
@@ -304,11 +323,11 @@ if CE_experimentRunning
     % START BUILDING UP STATS
     if counter_frameNum == 1
         CE_buildingUpStats = 1;
-        %     soundVolume = 0;
-        %     setSoundVolumeTeensy(soundVolume);
     end
     % BUILDING UP STATS
     if CE_buildingUpStats
+        source.hSI.task_cursorAmplitude.writeDigitalData(0);
+        source.hSI.task_goalAmplitude.writeDigitalData(0);
     end
     % END BUILDING UP STATS
     if CE_buildingUpStats && counter_frameNum > duration_buildingUpStats
@@ -462,9 +481,15 @@ if CE_experimentRunning
         
         if counter_frameNum > (counter_last_z_correction + interval_z_correction)
 
-            
             if delta ~=0
                 clampedDelta = sign(delta) * min(abs(delta), max_z_delta);
+                disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
+                currentPosition = moveFastZ(source, [], clampedDelta, [], [20,380]);
+                delta_moved = clampedDelta;
+                counter_last_z_correction = counter_frameNum;
+%             elseif (max(abs(frame_corrs(1) - frame_corrs(2)), abs(frame_corrs(3) - frame_corrs(2)))>abs(frame_corrs(1) - frame_corrs(3)))
+            elseif abs(frame_corrs(3) - frame_corrs(1)) > abs(max([frame_corrs(1), frame_corrs(3)] - frame_corrs(2)))
+                clampedDelta = sign(frame_corrs(1) - frame_corrs(3)) * max_z_delta;
                 disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
                 currentPosition = moveFastZ(source, [], clampedDelta, [], [20,380]);
                 delta_moved = clampedDelta;
@@ -483,7 +508,7 @@ if CE_experimentRunning
         CE_ITI_withZ = 0;
         ET_waitForBaseline = 1;
     end
-    
+%     toc
 end
 %% Teensy Output calculations
 
@@ -498,6 +523,7 @@ if CE_experimentRunning
 
     freqToOutput = convert_voltage_to_frequency(voltage_cursorCurrentPos , 3.3 , range_freqOutput); % for logging purposes only. function should mimic (exactly) the voltage to frequency transformation on teensy
 end
+% toc
 
 % save([directory , '\logger.mat'], 'logger')
 % saveParams(directory)
@@ -511,18 +537,18 @@ if counter_frameNum>1
     
     plotUpdatedOutput2([CE_waitForBaseline*0.1, CE_trial*0.2,...
         CE_rewardDelivery*0.3, CE_timeout*0.4, CE_buildingUpStats*0.5, fakeFeedback_inUse*0.6]...
-        , duration_plotting, frameRate, 'Rewards', 10, 52, ['# Rewards: ' , num2str(NumOfRewardsAcquired) , ' ; # Timeouts: ' , num2str(NumOfTimeouts)])
+        , duration_plotting, frameRate, 'Rewards', 10, 22, ['# Rewards: ' , num2str(NumOfRewardsAcquired) , ' ; # Timeouts: ' , num2str(NumOfTimeouts)])
     
-    plotUpdatedOutput3([xShift' yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 51)
+    plotUpdatedOutput3([xShift' yShift'], duration_plotting, frameRate, 'Motion Correction Shifts', 10, 11)
     
     if counter_frameNum > 25
         %     if counter_frameNum > 1
-        plotUpdatedOutput4([nanmean(logger.motionCorrection(counter_frameNum-15:counter_frameNum,3),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 62)
+        plotUpdatedOutput4([nanmean(logger.motionCorrection(counter_frameNum-15:counter_frameNum,3),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 12)
         %         plotUpdatedOutput4([nanmean(logger.motionCorrection.MC_correlation(counter_frameNum-15:counter_frameNum,:),1)], duration_plotting, frameRate, 'Motion Correction Correlation Rolling', 10, 12)
     end
     
     %     plotUpdatedOutput4(dFoF(1:10) , duration_plotting , frameRate , 'dFoF' , 20, 50)
-    plotUpdatedOutput6(cursor_output , duration_plotting , frameRate , 'cursor' , 10,53)
+    plotUpdatedOutput6(cursor_output , duration_plotting , frameRate , 'cursor' , 10,3)
     %     plotUpdatedOutput7(logger.motionCorrection(counter_frameNum,3) , duration_plotting , frameRate , 'Motion Correction Correlation' , 10,54)
     
     
@@ -542,10 +568,10 @@ if counter_frameNum>1
         duration_plotting, frameRate, 'Z Frame Correlations', 10, 10)
     
 end
+% toc
 %% DATA LOGGING
-
 if ~isnan(counter_frameNum)
-    %     logger_valsROIs(counter_frameNum,:) = vals_neurons; %already done above
+    logger_valsROIs(counter_frameNum,:) = vals_neurons; %already done above
     
     logger.timeSeries(counter_frameNum,1) = counter_frameNum;
     logger.timeSeries(counter_frameNum,2) = CS_quiescence;
@@ -603,15 +629,20 @@ end
 
 %% End Session
 
-% counter_frameNum
-if  counter_frameNum == round(duration_session * 0.80)
+if  counter_frameNum == round(duration_session * 0.90)
+%     source.hSI.task_cursorAmplitude.writeDigitalData(0);
+%     source.hSI.task_goalAmplitude.writeDigitalData(0);
     saveLogger(directory);
     saveParams(directory);
+%     source.hSI.task_cursorAmplitude.writeDigitalData(1);
+%     source.hSI.task_goalAmplitude.writeDigitalData(1);
 end
 % counter_frameNum
-if  counter_frameNum == round(duration_session * 0.95)
+if  counter_frameNum == round(duration_session * 0.98)
     endSession
 end
+% source.hSI.task_cursorAmplitude.writeDigitalData(0);
+% source.hSI.task_goalAmplitude.writeDigitalData(0);
 
 % toc
 %% FUNCTIONS
@@ -739,7 +770,7 @@ end
         loggerNames.trials{10} = 'success_outcome';
 
         logger_valsROIs = nan(duration_session , numCells);
-        runningVals = nan(numSamples_rollingStats , baselineStuff.ROIs.num_cells);
+        runningVals = nan(numSamples_rollingStats , numCells);
         running_cursor_raw = nan(numSamples_rollingStats , 1);
         
         rolling_var_obj_cells = rolling_var_and_mean();
@@ -807,7 +838,6 @@ end
         expParams.duration_session = duration_session;
         expParams.duration_trial = duration_trial;
         expParams.win_smooth = win_smooth;
-        %         expParams.F_baseline_prctile = F_baseline_prctile;
         expParams.duration_threshold = duration_threshold;
         expParams.threshold_value = threshold_value;
         expParams.range_cursor = range_cursor;
@@ -872,13 +902,7 @@ end
     end
 
     function [delta,frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner)
-%         image_toUse = prctile(img_MC_moving_rolling_z, zCorrPtile, 3);
-
         image_toUse = mean(img_MC_moving_rolling_z, 3);
-%         figure; imagesc(image_toUse)
-%         size(img_MC_moving_rolling_z)
-%         figure; imagesc(squeeze(img_MC_moving_rolling_z(:,:,1)))
-
         [delta, frame_corrs, xShifts, yShifts] = zCorrection(image_toUse, registrationImage, ...
             refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner);
         
@@ -916,4 +940,5 @@ end
         source.hSI.hFastZ.move(fastZDevice, newPosition);
 
     end
+%     toc
 end

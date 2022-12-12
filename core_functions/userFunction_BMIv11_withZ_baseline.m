@@ -22,8 +22,8 @@ currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\analysis_data\20221010';
-directory_zstack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\analysis_data\20221010';
+directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_B\20221018\analysis_data';
+directory_zstack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_B\20221018\analysis_data';
 maskPref = 1;
 borderOuter = 20;
 borderInner = 10;
@@ -495,7 +495,7 @@ if CE_experimentRunning
         voltage_cursorCurrentPos = convert_cursor_to_voltage(cursor_output , range_cursor, voltage_at_threshold);
     end
 %     voltage_cursorCurrentPos
-    voltage_cursorCurrentPos = (mod(counter_frameNum,2)+0.5);
+%     voltage_cursorCurrentPos = (mod(counter_frameNum,2)+0.5);
     source.hSI.task_cursorCurrentPos.writeAnalogData(double(voltage_cursorCurrentPos));
 
     freqToOutput = convert_voltage_to_frequency(voltage_cursorCurrentPos , 3.3 , range_freqOutput); % for logging purposes only. function should mimic (exactly) the voltage to frequency transformation on teensy

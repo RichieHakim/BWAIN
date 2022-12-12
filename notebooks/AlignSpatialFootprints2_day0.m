@@ -11,23 +11,24 @@
 % % refImOld variable should be named: 'refImOld'
 
 % Use day N-1 or day 0
-dir_Fall = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data\day0_analysis\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\day0_analysis\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 % Fall variable should be named: 'Fall' (from S2p; contains stat file)
 load([dir_Fall '\' fileName_Fall]);
 
-directory_zstack = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data';
-stack_beforeWarp = load([directory_zstack , '\stack.mat']);
+directory_zstack = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
+% stack_beforeWarp = load([directory_zstack , '\stack.mat']);
+stack_beforeWarp = load([directory_zstack , '\stack_sparse.mat']);
 
 % Use day 0
-directory_today = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221012\scanimage_data\baseline';
+directory_today = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\scanimage_data\baseline';
 fileName_movie = 'baseline_00';
 %%
 % path_spatialFootprints = 'D:\\RH_local\\data\\scanimage data\\round 5 experiments\\mouse 2_6\\20210410_test\\analysis_lastNight\\spatial_footprints_aligned.h5';
 
 %%
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221010\analysis_data\day0_analysis';
+directory_weights = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
 %% Import and downsample movie
@@ -72,6 +73,7 @@ while lastImportedFileIdx < filesExpected
                 
                 disp(['===== Importing:    ', fileNames(lastImportedFileIdx+1,:), '====='])
 %                 movie_chunk = bigread5([directory_today, '\', fileNames(lastImportedFileIdx+1,:)]);
+                disp([directory_today, '\', fileNames(lastImportedFileIdx+1,:)])
                 reader = ScanImageTiffReader([directory_today, '\', fileNames(lastImportedFileIdx+1,:)]);
                 movie_chunk = permute(reader.data(),[2,1,3]);
                 
@@ -118,6 +120,10 @@ frame_width = size(movie_all,2);
 % frame_width = 1024;
 
 paddingForMCRef = 50;
+
+idx_zeroOut = [[215, 339];[798, 899]];  %% [[y1, y2];, [x1, x2]] OR NaN
+% idx_zeroOut = NaN;  %% [[y1, y2];, [x1, x2]] OR NaN
+
 %% Make mean image (meanImForMC)
 % basically it just makes a mean image from the end of a movie. It first
 % makes a mean image from a bunch of frames from the end of the video. It
@@ -173,7 +179,7 @@ disp(['Number of frames used in mean image:  ' , num2str(numel(smoothedMotion))]
 
 % load([directory_refImOld '\' fileName_refImOld]);
 % refImOld = baselineStuff.MC.meanImForMC;
-refImOld = ops.meanImg; % make the reference image the Suite2p output reference image
+refImOld = single(ops.refImg); % make the reference image the Suite2p output reference image
 
 
 % directory_spatialFootprints = directory_refImOld;
@@ -265,12 +271,15 @@ refImOld = ops.meanImg; % make the reference image the Suite2p output reference 
 %% cellNumsToUse + cellWeightings
 cellNumsToUse   = find(iscell_custom);
 % cellNumsToUse   = 1:100;
+
+% PCn
+factor_to_use = 2; % 1-indexed
+
 % cellWeightings  = weights(iscell_custom);
-cellWeightings  = weights;
 % cellWeightings  = rand(length(cellNumsToUse),1);
 
 % numCells = length(cellNumsToUse); % in 1-indexed (matlab) indices
-numCells = length(cellWeightings); % in 1-indexed (matlab) indices
+numCells = length(weights_all(:, factor_to_use)'); % in 1-indexed (matlab) indices
 
 cell_size_max = 230; % in pixels
 
@@ -278,12 +287,27 @@ cell_size_max = 230; % in pixels
 spatial_footprints = zeros(numCells , frame_height , frame_width);
 spatial_footprints_weighted = zeros(numCells , frame_height , frame_width);
 for ii = 1:length(cellNumsToUse)
-    %     spatial_footprints(ii,:,:) = zeros(size(movie_all,1) , size(movie_all,2));
     for jj = 1:stat{cellNumsToUse(ii)}.npix
         spatial_footprints(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj);
+    end
+end
+
+if ~isnan(idx_zeroOut)
+    mask_zeroOut = zeros(frame_height, frame_width);
+    mask_zeroOut(idx_zeroOut(1,1): idx_zeroOut(1,2), idx_zeroOut(2,1): idx_zeroOut(2,2)) = 1;
+
+    ROIs_toZeroOut = squeeze(squeeze(max(max(spatial_footprints .* reshape(mask_zeroOut, 1, frame_height, frame_width), [],2), [],3))) > 0;
+    cellWeightings = weights_all(:, factor_to_use)' .* ~ROIs_toZeroOut';
+else
+    cellWeightings = weights_all(:, factor_to_use)';
+end
+
+for ii = 1:length(cellNumsToUse)
+    for jj = 1:stat{cellNumsToUse(ii)}.npix
         spatial_footprints_weighted(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj) .* cellWeightings(ii);
     end
 end
+
 %%
 figure;
 imshowpair(squeeze(max(spatial_footprints , [],1))  ,  ...
@@ -328,9 +352,7 @@ tmp_im_fixed = localnormalize(tmp_im_fixed, sigma , sigma);
 tmp_im_moving = localnormalize(tmp_im_moving, sigma , sigma);
 
 %
-im_moving_gpu = tmp_im_moving;
-im_fixed_gpu = tmp_im_fixed;
-[D_field, movingReg] = imregdemons(im_moving_gpu ,im_fixed_gpu , 500 , 'PyramidLevels', 4,...
+[D_field, movingReg] = imregdemons(tmp_im_moving ,tmp_im_fixed , 500 , 'PyramidLevels', 4,...
     'AccumulatedFieldSmoothing',2);
 %
 figure;
@@ -350,12 +372,44 @@ imshowpair(D_field(:,:,1) , D_field(:,:,2))
 % imagesc(spatial_footprints_all2)
 
 %% Warp the zstack images to the current session
-stack_warped = stack_beforeWarp.stack;
-for ii = 1:size(stack_beforeWarp.stack.stack_avg, 1)
-    stack_warped.stack_avg(ii,:,:)= imwarp(squeeze(stack_beforeWarp.stack.stack_avg(ii,:,:)) , D_field);
+tmp_im_fixed = meanIm;
+% im_fixed = ops.meanImg;
+% tmp_im_moving = squeeze(stack_beforeWarp.stack.stack_avg(3,:,:));
+tmp_im_moving = squeeze(stack_beforeWarp.stack_sparse.stack_avg(3,:,:));
+
+
+sigma = 20;
+
+tmp_im_fixed = localnormalize(tmp_im_fixed, sigma , sigma);
+tmp_im_moving = localnormalize(tmp_im_moving, sigma , sigma);
+
+[D_field_zstack, movingReg] = imregdemons(tmp_im_moving , tmp_im_fixed , 500 , 'PyramidLevels', 4,...
+    'AccumulatedFieldSmoothing',2);
+
+% stack_warped = stack_beforeWarp.stack;
+% for ii = 1:size(stack_beforeWarp.stack.stack_avg, 1)
+%     stack_warped.stack_avg(ii,:,:)= imwarp(squeeze(stack_beforeWarp.stack.stack_avg(ii,:,:)) , D_field_zstack);
+% end
+
+stack_warped = stack_beforeWarp.stack_sparse;
+for ii = 1:size(stack_beforeWarp.stack_sparse.stack_avg, 1)
+    stack_warped.stack_avg(ii,:,:)= imwarp(squeeze(stack_beforeWarp.stack_sparse.stack_avg(ii,:,:)) , D_field_zstack);
 end
 
-imshowpair(squeeze(stack_beforeWarp.stack.stack_avg(3,:,:)), squeeze(stack_warped.stack_avg(3,:,:)))
+%
+figure;
+imshowpair(tmp_im_fixed , tmp_im_moving)
+
+figure;
+imshowpair(tmp_im_fixed , imwarp(tmp_im_moving , D_field_zstack))
+%
+figure;
+imshowpair(D_field_zstack(:,:,1) , D_field_zstack(:,:,2))
+
+figure;
+% imshowpair(squeeze(stack_beforeWarp.stack.stack_avg(3,:,:)), squeeze(stack_warped.stack_avg(3,:,:)))
+imshowpair(squeeze(stack_beforeWarp.stack_sparse.stack_avg(3,:,:)), squeeze(stack_warped.stack_avg(3,:,:)))
+
 %% new 'tall' stuff (short and fat now)
 cell_sizes = nan(size(spatial_footprints,1),1);
 spatial_footprints_warped = spatial_footprints;
@@ -555,95 +609,13 @@ baselineStuff.ROIs.cellWeightings_tall_warped = cellWeightings_tall_warped;
 % % baselineStuff.mask_ROI_cropped = mask_ROI_cropped;
 % % baselineStuff.mask_ROI_directCells = mask_ROI_directCells;
 
-%%
-% [baselineStuff , motionCorrectionRefImages] = make_motionCorrectionRefImages2(baselineStuff, paddingForMCRef); % second arg is num of pixels to pad sides of ROI with
-% baselineStuff.motionCorrectionRefImages = motionCorrectionRefImages;
-
-%% Simulation (new)
-% 
-% % make raw input vals for pseudo BMI code function
-% 
-% % - first make a rolling F_baseline
-% % - it should be heavily approximated for speed
-% % - subsampling can be done both on the number of prctile calls done as well
-% % as the number of timepoints used in the prctile call
-% % - same goes for std
-% 
-% % tic
-% F_double = double(F);
-% % num_frames = size(F_double,2);
-% % num_frames = 1000
-% num_frames = size(movie_all,3);
-% for ii = 1:num_frames
-%     tic
-% %     ii
-%     if ii<num_frames
-% %         BMIv10_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff,num_frames);
-%         BMIv10_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff,num_frames);
-% 
-%     else
-% %         [logger , logger_valsROIs] = BMIv10_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff,num_frames);
-%         [logger , logger_valsROIs] = BMIv10_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff,num_frames);
-%     end
-%     toc
-% end
-% % toc
-% figure; plot((1:num_frames) / 30 , logger.decoder.outputs(1:num_frames,1))
-
-%% Simulation
-% % figure; plot(logger_output(:,28), 'LineWidth', 1.5)
-%
-% % threshVals = [2.0:.3:3.5];
-% threshVals = [2.5];
-% % scale_factors = 1./std(dFoF_roi(:,cellNumsToUse));
-%
-% duration_trial = 240; % I'm making the trials long to avoid overfitting to the ITIs.
-% duration_total = size(F_roi,1);
-% clear total_rewards_per30s currentCursor currentCSThresh currentCSQuiescence currentCETrial currentCEReward currentCETimeout
-% cc = 1;
-% for ii = threshVals
-%     tic
-%     disp(['testing threshold value:  ', num2str(ii)])
-%
-%     for jj = 1:size(F_roi,1)
-%         if jj == 1
-%             startSession_pref = 1;
-%         else
-%             startSession_pref = 0;
-%         end
-%
-%         %         [logger_output(jj,:)] = BMI_trial_simulation(F_roi(jj,cellNumsToUse),startSession_pref, scale_factors, ii, duration_total, duration_trial);
-%         [ currentCursor(jj) , currentCSThresh(jj), currentCSQuiescence(jj), currentCETrial(jj),  currentCEReward(jj), currentCETimeout(jj) ]...
-%             = BMI_trial_simulation2(F_roi(jj,:),startSession_pref, scale_factors, ii, duration_total, duration_trial, Ensemble_group);
-%     end
-%     %         total_rewards_perMin(cc) = sum(all_rewards)/(duration_total/30);
-%     %     disp(['total rewards per 30s at threshold = ' , num2str(ii) , ' is:   ', num2str(total_rewards_per30s(cc))]);
-%     %     figure; plot([all_rewards.*1.5, all_cursor, baselineState.*1.1, baselineHoldState*0.8, thresholdState.*0.6])
-%     toc
-%     cc = cc+1;
-%
-%     % figure;
-%     % plot(threshVals, total_rewards_per30s)
-%     % figure; plot(logger_output(:,33:36) .* repmat(scale_factors,size(logger_output,1),1))
-%     figure; plot(currentCursor) %cursor
-%     hold on; plot(currentCSThresh) %thresh
-%     % hold on; plot(currentCSQuiescence) %wait for quiescence
-%     hold on; plot(currentCETrial) %trial
-%     hold on; plot(currentCEReward, 'LineWidth',2) % rewards
-%     hold on; plot([0 numel(currentCEReward)] , [threshVals(end) threshVals(end)])
-%     rewardToneHold_diff = diff(currentCEReward);
-%     % timeout_diff = diff(logger_output(:,23));
-%     numRewards = sum(rewardToneHold_diff(rewardToneHold_diff > 0.5));
-%     numRewardsPerMin = numRewards / (size(F_roi,1) / (Fs_frameRate * 60));
-%     disp(['For Threshold  =  ', num2str(ii) , '  total rewards: ', num2str(numRewards) , ' , rewards per min: ' , num2str(numRewardsPerMin) ])
-%     % numTimeouts = sum(timeout_diff(timeout_diff > 0.5))
-%     % numRewards/(numRewards+numTimeouts)
-% end
+% baselineStuff.factor_to_use = 4;
+baselineStuff.factor_to_use = factor_to_use;
 
 %%
 baselineStuff.framesForMeanImForMC = [];
 % path_save = [directory_weights, '\baselineStuff_day0'];
-path_save = [directory_today, '\baselineStuff_day0'];
+path_save = [directory_today, '\baselineStuff_day0_PC2'];
 save(path_save, 'baselineStuff','-v7.3')
 disp(['Saved baselineStuff to:  ' ,path_save]) 
 
