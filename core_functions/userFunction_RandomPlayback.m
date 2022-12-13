@@ -389,9 +389,8 @@ if ~isnan(counter_frameNum)
     logger.trial(counter_frameNum,20) = ET_timeout;
     logger.trial(counter_frameNum,21) = CE_timeout;
     logger.trial(counter_frameNum,22) = counter_timeout;
-    logger.trial(counter_frameNum,23) = CE_waitForBaseline;
-    logger.trial(counter_frameNum,24) = CE_buildingUpStats;
-    logger.trial(counter_frameNum,25) = CE_experimentRunning;
+    logger.trial(counter_frameNum,23) = CE_buildingUpStats;
+    logger.trial(counter_frameNum,24) = CE_experimentRunning;
     
     logger.decoder.outputs(counter_frameNum,1) = cursor;
 %     logger.decoder.outputs(counter_frameNum,2) = freqToOutput;
@@ -474,9 +473,8 @@ end
         loggerNames.trial{20} = 'ET_timeout';
         loggerNames.trial{21} = 'CE_timeout';
         loggerNames.trial{22} = 'counter_timeout';
-        loggerNames.trial{23} = 'CE_waitForBaseline';
-        loggerNames.trial{24} = 'CE_buildingUpStats';
-        loggerNames.trial{25} = 'CE_experimentRunning';
+        loggerNames.trial{23} = 'CE_buildingUpStats';
+        loggerNames.trial{24} = 'CE_experimentRunning';
         
         loggerNames.decoder.outputs{1} = 'cursor';
         loggerNames.decoder.outputs{2} = 'freqToOutput';

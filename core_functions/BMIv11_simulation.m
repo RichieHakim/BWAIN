@@ -529,17 +529,16 @@ if ~isnan(counter_frameNum)
     logger.timeSeries(counter_frameNum,20) = ET_timeout;
     logger.timeSeries(counter_frameNum,21) = CE_timeout;
     logger.timeSeries(counter_frameNum,22) = counter_timeout;
-    logger.timeSeries(counter_frameNum,23) = CE_waitForBaseline;
-    logger.timeSeries(counter_frameNum,24) = CE_buildingUpStats;
-    logger.timeSeries(counter_frameNum,25) = CE_experimentRunning;
-    logger.timeSeries(counter_frameNum,26) = NumOfRewardsAcquired;
-    logger.timeSeries(counter_frameNum,27) = NumOfTimeouts;
-%     logger.timeSeries(counter_frameNum,28) = hash_image;
-    logger.timeSeries(counter_frameNum,29) = trialNum;
-    logger.timeSeries(counter_frameNum,30) = fakeFeedback_inUse;
-    logger.timeSeries(counter_frameNum,31) = trialType_cursorOn;
-    logger.timeSeries(counter_frameNum,32) = trialType_feedbackLinked;
-    logger.timeSeries(counter_frameNum,33) = trialType_rewardOn;
+    logger.timeSeries(counter_frameNum,23) = CE_buildingUpStats;
+    logger.timeSeries(counter_frameNum,24) = CE_experimentRunning;
+    logger.timeSeries(counter_frameNum,25) = NumOfRewardsAcquired;
+    logger.timeSeries(counter_frameNum,26) = NumOfTimeouts;
+%     logger.timeSeries(counter_frameNum,27) = hash_image;
+    logger.timeSeries(counter_frameNum,28) = trialNum;
+    logger.timeSeries(counter_frameNum,29) = fakeFeedback_inUse;
+    logger.timeSeries(counter_frameNum,30) = trialType_cursorOn;
+    logger.timeSeries(counter_frameNum,31) = trialType_feedbackLinked;
+    logger.timeSeries(counter_frameNum,32) = trialType_rewardOn;
     
     
     logger.timers(counter_frameNum,1) = now;
@@ -641,17 +640,16 @@ end
         loggerNames.timeSeries{20} = 'ET_timeout';
         loggerNames.timeSeries{21} = 'CE_timeout';
         loggerNames.timeSeries{22} = 'counter_timeout';
-        loggerNames.timeSeries{23} = 'CE_waitForBaseline';
-        loggerNames.timeSeries{24} = 'CE_buildingUpStats';
-        loggerNames.timeSeries{25} = 'CE_experimentRunning';
-        loggerNames.timeSeries{26} = 'NumOfRewardsAcquired';
-        loggerNames.timeSeries{27} = 'NumOfTimeouts';
-        loggerNames.timeSeries{28} = 'image_hash';
-        loggerNames.timeSeries{29} = 'trialNum';
-        loggerNames.timeSeries{30} = 'fakeFeedback_inUse';
-        loggerNames.timeSeries{31} = 'trialType_cursorOn';
-        loggerNames.timeSeries{32} = 'trialType_feedbackLinked';
-        loggerNames.timeSeries{33} = 'trialType_rewardOn';
+        loggerNames.timeSeries{23} = 'CE_buildingUpStats';
+        loggerNames.timeSeries{24} = 'CE_experimentRunning';
+        loggerNames.timeSeries{25} = 'NumOfRewardsAcquired';
+        loggerNames.timeSeries{26} = 'NumOfTimeouts';
+        loggerNames.timeSeries{27} = 'image_hash';
+        loggerNames.timeSeries{28} = 'trialNum';
+        loggerNames.timeSeries{29} = 'fakeFeedback_inUse';
+        loggerNames.timeSeries{30} = 'trialType_cursorOn';
+        loggerNames.timeSeries{31} = 'trialType_feedbackLinked';
+        loggerNames.timeSeries{32} = 'trialType_rewardOn';
         
         loggerNames.timers{1} = 'time_now';
         loggerNames.timers{2} = 'tic_toc';
