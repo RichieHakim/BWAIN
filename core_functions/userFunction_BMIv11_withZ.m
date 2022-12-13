@@ -402,10 +402,10 @@ if CE_experimentRunning
     if CE_trial && counter_trialIdx >= round(frameRate * duration_trial)
         CE_trial = 0;
         ET_timeout = 1;
-        trialNum = trialNum+1;
         counter_trialIdx = NaN;
         fakeFeedback_inUse = 0;
         updateLoggerTrials_END(0)
+        trialNum = trialNum+1;
     end
     % START TIMEOUT
     if ET_timeout
