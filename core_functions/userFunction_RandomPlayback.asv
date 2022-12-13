@@ -472,7 +472,7 @@ end
         loggerNames.decoder{3} = 'outputVoltageToTeensy';
         
         %         clear logger
-%         logger.timeSeries = NaN(duration_session, length(loggerNames.timeSeries));
+        logger.timeSeries = NaN(duration_session, length(loggerNames.timeSeries));
 %         logger.timers = NaN(duration_session, length(loggerNames.timers));
         logger.decoder = NaN(duration_session, length(loggerNames.decoder));
 %         logger.motionCorrection = NaN(duration_session,  length(loggerNames.motionCorrection));

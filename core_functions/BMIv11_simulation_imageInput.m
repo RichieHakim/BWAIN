@@ -606,7 +606,7 @@ if ~isnan(counter_frameNum)
     logger.timers(counter_frameNum,2) = toc;
     
     logger.decoder(counter_frameNum,1) = cursor_brain;
-    %     logger.decoder(counter_frameNum,2) = cursor_brain_raw;   % this is computed above
+    logger.decoder(counter_frameNum,2) = cursor_brain_raw;   % this is computed above
     logger.decoder(counter_frameNum,3) = cursor_output;
     logger.decoder(counter_frameNum,4) = freqToOutput; % note that this is just approximate, since calculation is done on teensy
     logger.decoder(counter_frameNum,5) = voltage_cursorCurrentPos;
@@ -688,13 +688,6 @@ end
         NumOfRewardsAcquired = 0;
         NumOfTimeouts = 0;
         trialNum = 1;
-        
-        clear logger
-        logger.timeSeries = NaN(duration_session,33);
-        logger.timers = NaN(duration_session,2);
-        logger.decoder = NaN(duration_session,4);
-        logger.motionCorrection = NaN(duration_session, 10);
-        logger.trials = NaN(size(trialStuff.condTrials,1), 10);
 
         loggerNames.timeSeries{1} = 'counter_frameNum';
         loggerNames.timeSeries{2} = 'CS_quiescence';
@@ -757,6 +750,13 @@ end
         loggerNames.trials{8} = 'time_now_trialEnd';
         loggerNames.trials{9} = 'counter_frameNum_trialEnd';
         loggerNames.trials{10} = 'success_outcome';
+
+        %         clear logger
+        logger.timeSeries = NaN(duration_session, length(loggerNames.timeSeries));
+        logger.timers = NaN(duration_session, length(loggerNames.timers));
+        logger.decoder = NaN(duration_session, length(loggerNames.decoder));
+        logger.motionCorrection = NaN(duration_session,  length(loggerNames.motionCorrection));
+        logger.trials = NaN(size(trialStuff.condTrials,1),  length(loggerNames.trials));
 
         logger_valsROIs = nan(duration_session , numCells);
         runningVals = nan(numSamples_rollingStats , numCells);

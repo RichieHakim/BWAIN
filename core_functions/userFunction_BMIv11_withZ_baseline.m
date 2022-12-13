@@ -662,13 +662,6 @@ end
         NumOfRewardsAcquired = 0;
         NumOfTimeouts = 0;
         trialNum = 1;
-        
-%         clear logger
-        logger.timeSeries = NaN(duration_session,33);
-        logger.timers = NaN(duration_session,2);
-%         logger.decoder = NaN(duration_session,4);
-        logger.motionCorrection = NaN(duration_session, 10);
-        logger.trials = NaN(size(trialStuff.condTrials,1), 10);
 
         loggerNames.timeSeries{1} = 'counter_frameNum';
         loggerNames.timeSeries{2} = 'CS_quiescence';
@@ -706,11 +699,11 @@ end
         loggerNames.timers{1} = 'time_now';
         loggerNames.timers{2} = 'tic_toc';
         
-%         loggerNames.decoder{1} = 'cursor_brain';
-%         loggerNames.decoder{2} = 'cursor_brain_raw';
-%         loggerNames.decoder{3} = 'cursor_output';
-%         loggerNames.decoder{4} = 'freqToOutput';
-%         loggerNames.decoder{5} = 'voltage_cursorCurrentPos';
+        loggerNames.decoder{1} = 'cursor_brain';
+        loggerNames.decoder{2} = 'cursor_brain_raw';
+        loggerNames.decoder{3} = 'cursor_output';
+        loggerNames.decoder{4} = 'freqToOutput';
+        loggerNames.decoder{5} = 'voltage_cursorCurrentPos';
         
         loggerNames.motionCorrection{1} = 'xShift';
         loggerNames.motionCorrection{2} = 'yShift';
@@ -736,6 +729,14 @@ end
 %         runningVals = nan(numSamples_rollingStats , baselineStuff.ROIs.num_cells);
 %         running_cursor_raw = nan(numSamples_rollingStats , 1);
         
+        
+%         clear logger
+        logger.timeSeries = NaN(duration_session, length(loggerNames.timeSeries));
+        logger.timers = NaN(duration_session, length(loggerNames.timers));
+        logger.decoder = NaN(duration_session, length(loggerNames.decoder));
+        logger.motionCorrection = NaN(duration_session,  length(loggerNames.motionCorrection));
+        logger.trials = NaN(size(trialStuff.condTrials,1),  length(loggerNames.trials));
+
         rolling_var_obj_cells = rolling_var_and_mean();
         rolling_var_obj_cells = rolling_var_obj_cells.set_key_properties(size(runningVals) , duration_rollingStats);
         rolling_var_obj_cursor = rolling_var_and_mean();
