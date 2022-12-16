@@ -93,7 +93,8 @@ end
 % startSession
 % =====================================================
 
-% counter_frameNum = counter_frameNum + 1;
+% % counter_frameNum = counter_frameNum + 1;
+% counter_frameNum = source.hSI.hStackManager.framesDone;
 
 % endSession
 

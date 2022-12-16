@@ -142,7 +142,8 @@ end
 % startSession
 % =====================================================
 
-counter_frameNum = counter_frameNum + 1;
+% counter_frameNum = counter_frameNum + 1;
+counter_frameNum = source.hSI.hStackManager.framesDone;
 
 if counter_frameNum == 1
     disp('frameNum = 1')
@@ -595,17 +596,16 @@ if ~isnan(counter_frameNum)
     logger.timeSeries(counter_frameNum,20) = ET_timeout;
     logger.timeSeries(counter_frameNum,21) = CE_timeout;
     logger.timeSeries(counter_frameNum,22) = counter_timeout;
-    logger.timeSeries(counter_frameNum,23) = CE_waitForBaseline;
-    logger.timeSeries(counter_frameNum,24) = CE_buildingUpStats;
-    logger.timeSeries(counter_frameNum,25) = CE_experimentRunning;
-    logger.timeSeries(counter_frameNum,26) = NumOfRewardsAcquired;
-    logger.timeSeries(counter_frameNum,27) = NumOfTimeouts;
-    logger.timeSeries(counter_frameNum,28) = hash_image;
-    logger.timeSeries(counter_frameNum,29) = trialNum;
-    logger.timeSeries(counter_frameNum,30) = fakeFeedback_inUse;
-    logger.timeSeries(counter_frameNum,31) = trialType_cursorOn;
-    logger.timeSeries(counter_frameNum,32) = trialType_feedbackLinked;
-    logger.timeSeries(counter_frameNum,33) = trialType_rewardOn;
+    logger.timeSeries(counter_frameNum,23) = CE_buildingUpStats;
+    logger.timeSeries(counter_frameNum,24) = CE_experimentRunning;
+    logger.timeSeries(counter_frameNum,25) = NumOfRewardsAcquired;
+    logger.timeSeries(counter_frameNum,26) = NumOfTimeouts;
+    logger.timeSeries(counter_frameNum,27) = hash_image;
+    logger.timeSeries(counter_frameNum,28) = trialNum;
+    logger.timeSeries(counter_frameNum,29) = fakeFeedback_inUse;
+    logger.timeSeries(counter_frameNum,30) = trialType_cursorOn;
+    logger.timeSeries(counter_frameNum,31) = trialType_feedbackLinked;
+    logger.timeSeries(counter_frameNum,32) = trialType_rewardOn;
     
     
     logger.timers(counter_frameNum,1) = now;

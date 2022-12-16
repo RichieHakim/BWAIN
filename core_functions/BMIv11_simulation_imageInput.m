@@ -132,7 +132,8 @@ end
 % startSession
 % =====================================================
 
-% counter_frameNum = counter_frameNum + 1;
+% % counter_frameNum = counter_frameNum + 1;
+% counter_frameNum = source.hSI.hStackManager.framesDone;
 
 if counter_frameNum == 1
     disp('frameNum = 1')

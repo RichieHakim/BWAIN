@@ -7,10 +7,26 @@
 % -  compute_hashSequence.m
 % -  compare_hashSequence.m
 % -  indexWithNaNs.m
+%% Set save directory
+dir_save = '\\research.files.med.harvard.edu\Neurobio\MICROSCOPE\Gyu\BMI_data\mouse_B\20221020\analysis_data';
+
+%%
+% Import logger
+dir_logger = '\\research.files.med.harvard.edu\Neurobio\MICROSCOPE\Gyu\BMI_data\mouse_B\20221020\analysis_data';
+
+fileName_logger = 'logger.mat';
+load([dir_logger '\' fileName_logger]);
+
+fileName_logger_valsROIs = 'logger_valsROIs.mat';
+load([dir_logger '\' fileName_logger_valsROIs]);
+
+fileName_expParams = 'expParams.mat';
+load([dir_logger '\' fileName_logger_valsROIs]);
+
 %% Import movie
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\scanimage_data\20220811\exp';
-fileName_movie = 'exp_';
+directory_movie = '\\research.files.med.harvard.edu\Neurobio\MICROSCOPE\Gyu\BMI_data\mouse_B\20221020\scanimage_data\baseline';
+fileName_movie = 'baseline_';
 
 frames_totalExpected = 108000;
 frames_perFile = 1000;
@@ -79,15 +95,6 @@ end
 
 %%
 movie_hash = compute_hashSequence(movie_all,1);
-%%
-% Import logger
-dir_logger = 'D:\RH_local\data\BMI_round_7\mouse_1_18_practice\analysis_data\20220811';
-
-fileName_logger = 'logger.mat';
-load([dir_logger '\' fileName_logger]);
-
-fileName_logger_valsROIs = 'logger_valsROIs.mat';
-load([dir_logger '\' fileName_logger_valsROIs]);
 
 %%
 hash1 = logger.timeSeries(:,28);
@@ -114,7 +121,8 @@ hash2 = movie_hash;
 
 [   ia_1to2 , ia_2to1,...
     vals_uniqueToSet1 , inds_uniqueToSet1 ,...
-    vals_uniqueToSet2 , inds_uniqueToSet2 ,...
+    vals_uniqueToSet2 , inds_
+    uniqueToSet2 ,...
     inds_duplicateSet1Values, inds_duplicateSet2Values]...
 = compare_hashSequences(hash1 , hash2);
 
@@ -144,16 +152,15 @@ logger_valsROIs_aligned = indexWithNaNs(logger_valsROIs , ia_2to1);
 figure; plot(hash2(:,1))
 hold on; plot(logger_aligned.timeSeries(:,28))
 %% Save aligned logger
-save_path = 'D:\RH_local\data\scanimage data\round 6 experiments\mouse_1_18\20220225';
 
 save_name = 'logger_aligned.mat';
-save([save_path , '\' , save_name] , 'logger_aligned');
+save([dir_save , '\' , save_name] , 'logger_aligned');
 
 save_name = 'logger_valsROIs_aligned.mat';
-save([save_path , '\' , save_name] , 'logger_valsROIs_aligned');
+save([dir_save , '\' , save_name] , 'logger_valsROIs_aligned');
 
 save_name = 'logger_alignment_vectors.mat';
-save([save_path , '\' , save_name ] , 'logger_alignment_vectors');
+save([dir_save , '\' , save_name ] , 'logger_alignment_vectors');
 
 
         
