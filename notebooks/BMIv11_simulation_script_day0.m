@@ -1,7 +1,7 @@
 % Run simulation
 
 % import Fall.mat file
-dir_Fall = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\day0_analysis\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 
 path_Fall = [dir_Fall , '\' , fileName_Fall];
@@ -9,7 +9,7 @@ Fall = load(path_Fall);
 
 % Import weights computed from Day 0
 
-dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
+dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
 % fileName_weightsDay0 = 'weights_day0.mat';
 % 
 % path_weightsDay0 = [dir_analysis_day0 , '\' , fileName_weightsDay0];
@@ -21,12 +21,12 @@ dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_
 %% Import trialStuff for today's experiment
 fileName_trialStuff = 'trialStuff.mat';
 
-dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\analysis_data';
+dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230112\analysis_data';
 path_trialStuff = [dir_analysis_dayN , '\' , fileName_trialStuff];
 load(path_trialStuff);
 
 %% Import baselineStuff from Day 0 or N 
-fileName_baselineStuff = 'baselineStuff_day0_PC2.mat';
+fileName_baselineStuff = 'baselineStuff_day0.mat';
 
 path_baselineStuff = [dir_analysis_day0 , '\' , fileName_baselineStuff];
 % path_baselineStuff = [dir_analysis_dayN , '\' , 'baselineStuff.mat'];
@@ -53,9 +53,10 @@ stack = stack_warped;
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
 directory_movie = 'D:\RH_local\data\BMI_cage_1511_3\mouse_B\20221020\scanimage_data\baseline';
-fileName_movie = 'baseline';
+fileName_movie = 'exp';
+% fileName_movie = 'baseline';
 
-frames_totalExpected = 10000;
+frames_totalExpected = 108000;
 frames_perFile = 1000;
 
 ds_factor = 5; % downsampling
@@ -150,7 +151,7 @@ F_double = double(Fall.F);
 % num_frames = size(movie_all, 3);
 num_frames = size(F_double, 2);
 
-threshold_reward = 1.5;
+threshold_reward = 2.0;
 threshold_quiescence = 0;
 duration_quiescenceHold = 0.5; % in second
 
@@ -182,12 +183,12 @@ disp(['total duration =  ' , num2str(duration_inMinutes) , ' min'])
 disp(['total number of trials = ' , num2str(size(logger.trials,1))])
 
 %%
-figure; imagesc(logger.timeSeries(:,[2,4,5,7,13,16,19,21,30,31,32,33])')
-figure; plot(logger.timeSeries(:,[2,4,5,7,13,16,19,21,30,31,32,33]) + [0,2,4,6,8,10,12,14,16,18,20,22])
+figure; imagesc(logger.timeSeries(:,[2,4,5,7,13,16,19,21,30,31,32])')
+figure; plot(logger.timeSeries(:,[2,4,5,7,13,16,19,21,30,31,32]) + [0,2,4,6,8,10,12,14,16,18,20])
 reward_times = find(diff(logger.timeSeries((1:num_frames),13))>0.5);
 figure; plot(logger.decoder(1:num_frames,4).*logger.timeSeries(1:num_frames,5)/10000)
 hold on; plot(logger.decoder(1:num_frames,3))
-hold on; plot(logger.timeSeries(1:num_frames,31:33))
+hold on; plot(logger.timeSeries(1:num_frames,31:32))
 hold on; plot([1,length(logger.timeSeries(1:num_frames,1))] , [threshold_reward , threshold_reward])
 hold on; plot(reward_times, ones(size(reward_times))*0.2 , '.' , 'MarkerSize' , 20)
 
@@ -199,10 +200,10 @@ figure;
 % plot(weights_day0.regression_output.regression_goalSignal-0.55)
 plot(logger.decoder(1:num_frames,1))
 %% save
-save_dir =  'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\analysis_data';
-save([save_dir , '\' ,'numRewardsAcquired_PC2'] , 'numRewardsAcquired');
-save([save_dir , '\' , 'reward_rate_per_min_PC2'] , 'reward_rate_per_min');
-save([save_dir , '\' , 'logger_simulation_PC2'] , 'logger');
+save_dir =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
+save([save_dir , '\' ,'numRewardsAcquired_PC1'] , 'numRewardsAcquired');
+save([save_dir , '\' , 'reward_rate_per_min_PC1'] , 'reward_rate_per_min');
+save([save_dir , '\' , 'logger_simulation_PC1'] , 'logger');
 
 
 

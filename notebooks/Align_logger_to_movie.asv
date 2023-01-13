@@ -145,12 +145,12 @@ logger_aligned.motionCorrection = indexWithNaNs(logger.motionCorrection , ia_2to
 
 logger_aligned.trials = logger.trials;
 logger_aligned.trials(:,3) = indexWithNaNs(ia_2to1, logger.trials(:,3));
-logger_aligned.trials(:,9) = indexWithNaNs(ia_2to1, logger.trials(:,9));
+logger_aligned.trials(:,3) = indexWithNaNs(ia_2to1, logger.trials(:,3));
 
 logger_valsROIs_aligned = indexWithNaNs(logger_valsROIs , ia_2to1);
 %%
 figure; plot(hash2(:,1))
-hold on; plot(logger_aligned.timeSeries(:,27))
+hold on; plot(logger_aligned.timeSeries(:,28))
 %% Save aligned logger
 
 save_name = 'logger_aligned.mat';

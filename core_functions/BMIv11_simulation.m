@@ -190,6 +190,8 @@ end
 % vals_neurons = nansum( TA_CF_lam_reshape , 1 );
 % % toc
 %% == ROLLING STATS ==
+cursor_brain_raw = NaN;
+fakeFeedback_inUse = NaN;
 if counter_frameNum >=0
     logger_valsROIs(counter_frameNum,:) = vals_neurons;
 end

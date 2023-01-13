@@ -1,10 +1,10 @@
-path_stack = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\scanimage_data\zstack\zstack_00001_00001.tif';
-path_save = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\stack_dense.mat';
+path_stack = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\scanimage_data\zstack\zstack_00001_00001.tif';
+path_save = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\stack_dense.mat';
 
 num_frames_per_slice = 60;
-num_slices = 31;
+num_slices = 25;
 num_volumes = 10;
-step_size_um = 0.5;
+step_size_um = 0.75;
 centered = 1;
 % FAST
 % STEP
@@ -26,6 +26,12 @@ stack.stack_avg = squeeze(squeeze(mean(mean(slices_rs, 1), 3)));
 % stack.stack_avg = squeeze(prctile(reshape(slices_raw, num_slices, num_frames_per_slice, size(slices_raw,2), size(slices_raw,3)), zCorrPtile, 2));
 
 save(path_save, 'stack')
+%%
+range = ((num_slices - 1) * step_size_um)/2;
+disp(['range of slices: ', num2str(range)])
+% FAST
+% STEP
+% # Frames/File 100000
 
 %%
 for ii = 1:size(stack.stack_avg, 1)
@@ -40,10 +46,24 @@ figure; imagesc(abs(fft2(inputMasked)))
 
 %%
 stack_sparse = stack;
-stack_sparse.step_size_um = 3;
-stack_sparse.stack_avg = stack_sparse.stack_avg([4,10,16,22,28],:,:);
+stack_sparse.step_size_um = 4;
+stack_sparse.step_numIdx = ceil(stack_sparse.step_size_um  / step_size_um);
+stack_sparse.idx_center = ceil(num_slices / 2);
 
-path_save_sparse = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\stack_sparse.mat';
+idx = stack_sparse.idx_center;
+n = stack_sparse.step_numIdx ;
+idx_slices = uint16([idx-n*2, idx-n*1, idx-n*0, idx+n*1, idx+n*2]);
+    
+stack_sparse.stack_avg = stack_sparse.stack_avg(idx_slices,:,:);
+
+stack_sparse.params.num_frames_per_slice = num_frames_per_slice;
+stack_sparse.params.num_slices = num_slices;
+stack_sparse.params.num_volumes = num_volumes;
+stack_sparse.params.step_size_um = step_size_um;
+stack_sparse.params.centered = centered;
+
+%%
+path_save_sparse = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\stack_sparse.mat';
 save(path_save_sparse, 'stack_sparse')
 %%
 function image = maskImage(image, border_outer, border_inner)

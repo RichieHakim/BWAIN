@@ -4,7 +4,7 @@ global registrationImage refIm_crop_conjFFT_shift img_MC_moving ...
     img_MC_moving_rolling loadedCheck_registrationImage counter_frameNum ...
     indRange_y_crop indRange_x_crop
 
-directory = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
+directory = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
 
 currentImage = source.hSI.hDisplay.lastFrame{1};
 

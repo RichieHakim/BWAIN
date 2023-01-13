@@ -11,24 +11,25 @@
 % % refImOld variable should be named: 'refImOld'
 
 % Use day N-1 or day 0
-dir_Fall = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data\day0_analysis\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 % Fall variable should be named: 'Fall' (from S2p; contains stat file)
 load([dir_Fall '\' fileName_Fall]);
 
-directory_zstack = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
+directory_zstack = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
 % stack_beforeWarp = load([directory_zstack , '\stack.mat']);
 stack_beforeWarp = load([directory_zstack , '\stack_sparse.mat']);
 
 % Use day 0
-directory_today = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\scanimage_data\baseline';
+directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\scanimage_data\baseline';
+% fileName_movie = 'exp_00';
 fileName_movie = 'baseline_00';
 %%
 % path_spatialFootprints = 'D:\\RH_local\\data\\scanimage data\\round 5 experiments\\mouse 2_6\\20210410_test\\analysis_lastNight\\spatial_footprints_aligned.h5';
 
 %%
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221111\analysis_data';
+directory_weights = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
 %% Import and downsample movie
@@ -273,7 +274,7 @@ cellNumsToUse   = find(iscell_custom);
 % cellNumsToUse   = 1:100;
 
 % PCn
-factor_to_use = 2; % 1-indexed
+factor_to_use = 1; % 1-indexed
 
 % cellWeightings  = weights(iscell_custom);
 % cellWeightings  = rand(length(cellNumsToUse),1);
@@ -615,7 +616,7 @@ baselineStuff.factor_to_use = factor_to_use;
 %%
 baselineStuff.framesForMeanImForMC = [];
 % path_save = [directory_weights, '\baselineStuff_day0'];
-path_save = [directory_today, '\baselineStuff_day0_PC2'];
+path_save = [directory_today, '\baselineStuff.mat'];
 save(path_save, 'baselineStuff','-v7.3')
 disp(['Saved baselineStuff to:  ' ,path_save]) 
 

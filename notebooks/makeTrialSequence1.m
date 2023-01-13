@@ -22,7 +22,7 @@ fakeDecoderData = logger.decoder(:,1);
 fakeDecoderData = fakeDecoderData(isnan(fakeDecoderData)==0);
 
 % Scale to get a set percentage of threshold hits
-threshold = 1.5;
+threshold = 2.0;
 goal_threshAchieved = 0.4; % goal of what fraction of fake cursor trials reach threshold
 %% Reshuffling optimization
 thresh_check_avg = inf;
@@ -293,7 +293,7 @@ trialStuff.condProbs = 'N/A';
 trialStuff.homogeneousBlockSize = 'N/A';
 
 %%
-dir = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\analysis_data';
+dir = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\analysis_data';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 

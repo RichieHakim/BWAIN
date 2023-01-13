@@ -27,13 +27,14 @@ duration_plotting           = 30 * frameRate; % ADJUSTABLE: change number value 
 duration_session            = 30*60*60; % ADJUSTABLE: change number value (in seconds/minutes)
 win_smooth                  = 4; % smoothing window (in frames)
 show_MC_ref_images          = 0;
-threshold_value             = 1.5;
+threshold_value             = 2.0;
 
 % SETTINGS: Motion correction
-numFramesToAvgForMotionCorr = 60;
-numFramesToMedForZCorr      = 30*4;
-zCorrFrameInterval          = 15; 
+numFramesToAvgForMotionCorr = 4;
+numFramesToMedForZCorr      = 30*3;
+zCorrFrameInterval          = 8; 
 interval_z_correction       = 60*frameRate;
+% max_z_delta                 = 1;
 max_z_delta                 = 0.5;
 
 % SETTINGS: Cursor
@@ -74,7 +75,7 @@ currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-directory = 'D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221118\analysis_data';
+directory = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\analysis_data';
 maskPref = 1;                                                                     
 borderOuter = 20;                                                                
 borderInner = 10;      
@@ -237,13 +238,25 @@ end
 % toc
 
 %% == ROLLING STATS ==
+cursor_brain = NaN;
+cursor_brain_raw = NaN;
+cursor_output = NaN;
+fakeFeedback_inUse = NaN;
+CS_quiescence = NaN;
+CS_threshold = NaN;
+
+trialType_cursorOn = NaN;
+trialType_feedbackLinked = NaN;
+trialType_rewardOn = NaN;
+
+
 if CE_experimentRunning
     if strcmp(mode, 'BMI')
         if mod(counter_frameNum-1 , subSampleFactor_runningVals) == 0
             next_idx = mod(counter_runningVals-1 , numSamples_rollingStats)+1;
             vals_old = runningVals(next_idx , :);
             runningVals(next_idx,:) = vals_neurons;
-            [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
+            [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(runningVals(next_idx,:) , vals_old);
             counter_runningVals = counter_runningVals+1;
         end
         if counter_frameNum == 1
@@ -265,7 +278,7 @@ if CE_experimentRunning
         next_idx = mod(counter_runningCursor-1 , duration_rollingStats)+1;
         vals_old = running_cursor_raw(next_idx);
         running_cursor_raw(next_idx) = cursor_brain_raw;
-        [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
+        [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(running_cursor_raw(next_idx) , vals_old);
         counter_runningCursor = counter_runningCursor+1;
 
         if counter_frameNum >= win_smooth
@@ -312,7 +325,7 @@ if CE_experimentRunning
         cursor_output = cursor_brain;
         fakeFeedback_inUse = 0;
     end
-    
+        
     CS_quiescence = algorithm_quiescence(cursor_output, threshold_quiescence);
     CS_threshold = algorithm_thresholdState(cursor_output, threshold_value);
     
@@ -407,6 +420,7 @@ if CE_experimentRunning
         fakeFeedback_inUse = 0;
         updateLoggerTrials_END(0)
         trialNum = trialNum+1;
+        
     end
     % START TIMEOUT
     if ET_timeout
@@ -484,15 +498,15 @@ if CE_experimentRunning
 
             if delta ~=0
                 clampedDelta = sign(delta) * min(abs(delta), max_z_delta);
-                disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
                 currentPosition = moveFastZ(source, [], clampedDelta, [], [20,380]);
+                disp(['moving fast Z by one step: ', num2str(clampedDelta), 'new position: ', num2str(currentPosition)]) %num2str(delta)])
                 delta_moved = clampedDelta;
                 counter_last_z_correction = counter_frameNum;
 %             elseif (max(abs(frame_corrs(1) - frame_corrs(2)), abs(frame_corrs(3) - frame_corrs(2)))>abs(frame_corrs(1) - frame_corrs(3)))
             elseif abs(frame_corrs(3) - frame_corrs(1)) > abs(max([frame_corrs(1), frame_corrs(3)] - frame_corrs(2)))
                 clampedDelta = sign(frame_corrs(1) - frame_corrs(3)) * max_z_delta;
-                disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
                 currentPosition = moveFastZ(source, [], clampedDelta, [], [20,380]);
+                disp(['moving fast Z by one step: ', num2str(clampedDelta), ', new position: ', num2str(currentPosition + clampedDelta)]) %num2str(delta)])
                 delta_moved = clampedDelta;
                 counter_last_z_correction = counter_frameNum;
             end
@@ -601,7 +615,9 @@ if ~isnan(counter_frameNum)
     logger.timeSeries(counter_frameNum,25) = NumOfRewardsAcquired;
     logger.timeSeries(counter_frameNum,26) = NumOfTimeouts;
     logger.timeSeries(counter_frameNum,27) = hash_image;
-    logger.timeSeries(counter_frameNum,28) = trialNum;
+%     logger.timeSeries(counter_frameNum,28) = trialNum;
+    % 01/11/2023 trialNum column
+    logger.timeSeries(counter_frameNum,28) = trialNum * CE_trial;
     logger.timeSeries(counter_frameNum,29) = fakeFeedback_inUse;
     logger.timeSeries(counter_frameNum,30) = trialType_cursorOn;
     logger.timeSeries(counter_frameNum,31) = trialType_feedbackLinked;

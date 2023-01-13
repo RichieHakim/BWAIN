@@ -38,6 +38,7 @@ classdef rolling_var_and_mean
         %         vals_rolling = nan([win_size, dim_sizes_slices]);
         vals_rolling = nan([3, 1]);
         otherdims = repmat({':'},1,numel(1)-1);
+        idx_new = 1;
     end
     
     methods
@@ -56,17 +57,19 @@ classdef rolling_var_and_mean
         end
         
         % MAIN STEP FUNCTION:
-        function [obj , mean_new , var_new]  = step(obj, idx_new, vals_new , vals_old)
+        function [obj , mean_new , var_new]  = step(obj,  vals_new , vals_old)
             %             idx_rolling_new = mod(idx_new-1 , obj.win_size)+1;
             %             vals_old = obj.vals_rolling(idx_rolling_new , obj.otherdims{:});
             %             obj.vals_rolling(idx_rolling_new , obj.otherdims{:}) = vals;
             %             vals_new = obj.vals_rolling(idx_rolling_new , obj.otherdims{:});
-            mean_new = obj.update_mean(idx_new, vals_new, vals_old, obj.win_size, obj.mean_old);
-            varSum_new = obj.update_varSum(idx_new, vals_new, vals_old, obj.win_size, obj.varSum_old);
-            var_new = obj.varSum_to_var(idx_new, obj.win_size, mean_new, varSum_new, obj.dim_sizes_slices);
+            mean_new = obj.update_mean(obj.idx_new, vals_new, vals_old, obj.win_size, obj.mean_old);
+            varSum_new = obj.update_varSum(obj.idx_new, vals_new, vals_old, obj.win_size, obj.varSum_old);
+            var_new = obj.varSum_to_var(obj.idx_new, obj.win_size, mean_new, varSum_new, obj.dim_sizes_slices);
             
             obj.mean_old = mean_new;
             obj.varSum_old = varSum_new;
+            
+            obj.idx_new = obj.idx_new + 1;
         end
         
         % Code for the Running or Windowed Variance:
