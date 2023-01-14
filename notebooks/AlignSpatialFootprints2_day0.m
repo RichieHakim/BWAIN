@@ -21,7 +21,7 @@ directory_zstack = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analys
 stack_beforeWarp = load([directory_zstack , '\stack_sparse.mat']);
 
 % Use day 0
-directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\scanimage_data\baseline';
+directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230114\scanimage_data\baseline';
 % fileName_movie = 'exp_00';
 fileName_movie = 'baseline_00';
 %%

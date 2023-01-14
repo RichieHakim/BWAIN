@@ -293,7 +293,7 @@ trialStuff.condProbs = 'N/A';
 trialStuff.homogeneousBlockSize = 'N/A';
 
 %%
-dir = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\analysis_data';
+dir = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230114\analysis_data';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 

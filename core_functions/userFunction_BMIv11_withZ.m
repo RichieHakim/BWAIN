@@ -44,7 +44,7 @@ range_freqOutput = [1000 18000]; % this is set in the teensy code (only here for
 voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
 
 % SETTINGS: Reward
-reward_duration = 64; % in ms calibrated to 3.6 uL/reward 
+reward_duration = 52; % 01/14/2023 in ms calibrated to 2.5 uL/reward 
 reward_delay = 0; % in ms
 % reward_delay = 5; % in ms
 LED_duration = 0.2; % in s
@@ -75,7 +75,7 @@ currentImage = source.hSI.hDisplay.lastFrame{1};
 hash_image = simple_image_hash(currentImage);
 
 % Should be TODAY's directory
-directory = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\analysis_data';
+directory = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230114\analysis_data';
 maskPref = 1;                                                                     
 borderOuter = 20;                                                                
 borderInner = 10;      
