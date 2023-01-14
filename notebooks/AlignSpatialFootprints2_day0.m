@@ -546,6 +546,7 @@ imagesc(log(abs(refIm_crop_conjFFT_shift)))
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^1  )
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^0.3)
 
+disp(['Mean intensity of meanIm: ', num2str(mean(mean(meanIm)))])
 %%
 figure; imshow(spatial_footprints_all_weighted*3)
 

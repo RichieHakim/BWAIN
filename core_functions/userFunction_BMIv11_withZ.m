@@ -34,7 +34,6 @@ numFramesToAvgForMotionCorr = 4;
 numFramesToMedForZCorr      = 30*3;
 zCorrFrameInterval          = 8; 
 interval_z_correction       = 60*frameRate;
-% max_z_delta                 = 1;
 max_z_delta                 = 0.5;
 
 % SETTINGS: Cursor
@@ -499,7 +498,7 @@ if CE_experimentRunning
             if delta ~=0
                 clampedDelta = sign(delta) * min(abs(delta), max_z_delta);
                 currentPosition = moveFastZ(source, [], clampedDelta, [], [20,380]);
-                disp(['moving fast Z by one step: ', num2str(clampedDelta), 'new position: ', num2str(currentPosition)]) %num2str(delta)])
+                disp(['moving fast Z by one step: ', num2str(clampedDelta), ', new position: ', num2str(currentPosition + clampedDelta)]) %num2str(delta)])
                 delta_moved = clampedDelta;
                 counter_last_z_correction = counter_frameNum;
 %             elseif (max(abs(frame_corrs(1) - frame_corrs(2)), abs(frame_corrs(3) - frame_corrs(2)))>abs(frame_corrs(1) - frame_corrs(3)))
@@ -654,9 +653,15 @@ if  counter_frameNum == round(duration_session * 0.90)
 %     source.hSI.task_goalAmplitude.writeDigitalData(1);
 end
 % counter_frameNum
-if  counter_frameNum == round(duration_session * 0.98)
+
+% if  counter_frameNum == round(duration_session * 0.98)
+%     endSession
+% end
+if CE_experimentRunning && ((NumOfRewardsAcquired == 250) || counter_frameNum == round(duration_session * 0.98))
     endSession
 end
+
+
 % source.hSI.task_cursorAmplitude.writeDigitalData(0);
 % source.hSI.task_goalAmplitude.writeDigitalData(0);
 
