@@ -88,8 +88,8 @@ class Shifter_rigid:
                 kind='linear', 
                 fill_value=0
             )
-            kernel = interp(1/im_dist)
-            kernel = torch.as_tensor(kernel, device=self._device, dtype=self._dtype)
+            kernel = interp(1/(im_dist+1e-12))
+            kernel = torch.as_tensor(kernel, device=self._device, dtype=torch.complex64)
 
             if plot_pref:
                 plt.figure()
