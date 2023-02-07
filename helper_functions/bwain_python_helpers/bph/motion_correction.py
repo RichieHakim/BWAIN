@@ -45,7 +45,18 @@ class Shifter_rigid:
         plot_pref=False,
     ):
         """
-        
+        Make a Fourier domain mask for the phase correlation.
+
+        Args:
+            bandpass_spatialFs_bounds (tuple): 
+                (lowcut, highcut) in spatial frequency
+                A butterworth filter is used to make the mask.
+            order_butter (int):
+                Order of the butterworth filter.
+            mask (np.ndarray):
+                If not None, use this mask instead of making one.
+            plot_pref (bool):
+                If True, plot the absolute value of the mask.
         """
         if mask is not None:
             self.mask = torch.as_tensor(mask, device=self._device, dtype=self._dtype)
@@ -78,7 +89,8 @@ class Shifter_rigid:
                 fill_value=0
             )
             kernel = interp(1/im_dist)
+            kernel = torch.as_tensor(kernel, device=self._device, dtype=self._dtype)
 
             if plot_pref:
                 plt.figure()
-                plt.imshow(np.abs(kernel))
+                plt.imshow(torch.abs(kernel.cpu()).numpy())
