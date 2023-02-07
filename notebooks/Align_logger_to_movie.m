@@ -8,11 +8,11 @@
 % -  compare_hashSequence.m
 % -  indexWithNaNs.m
 %% Set save directory
-dir_save = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\analysis_data';
+dir_save = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230127\analysis_data';
 
 %%
 % Import logger
-dir_logger = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\analysis_data';
+dir_logger = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230127\analysis_data';
 
 fileName_logger = 'logger.mat';
 load([dir_logger '\' fileName_logger]);
@@ -21,11 +21,11 @@ fileName_logger_valsROIs = 'logger_valsROIs.mat';
 load([dir_logger '\' fileName_logger_valsROIs]);
 
 fileName_expParams = 'expParams.mat';
-load([dir_logger '\' fileName_logger_valsROIs]);
+load([dir_logger '\' fileName_expParams]);
 
 %% Import movie
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230113\scanimage_data\exp';
+directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230127\scanimage_data\exp';
 fileName_movie = 'exp_';
 
 frames_totalExpected = 108000;

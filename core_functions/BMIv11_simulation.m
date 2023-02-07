@@ -201,7 +201,9 @@ if CE_experimentRunning
         next_idx = mod(counter_runningVals-1 , numSamples_rollingStats)+1;
         vals_old = runningVals(next_idx , :);
         runningVals(next_idx,:) = vals_neurons;
-        [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
+        % 20230126 Now, counter_frameNum follows ScanImage Frames Done
+%         [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
+        [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(runningVals(next_idx,:) , vals_old);
         counter_runningVals = counter_runningVals+1;
     end
     if counter_frameNum == 1
@@ -222,7 +224,8 @@ if CE_experimentRunning
     next_idx = mod(counter_runningCursor-1 , duration_rollingStats)+1;
     vals_old = running_cursor_raw(next_idx);
     running_cursor_raw(next_idx) = cursor_brain_raw;
-    [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
+%     [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
+    [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(running_cursor_raw(next_idx) , vals_old);
     counter_runningCursor = counter_runningCursor+1;
     
     if counter_frameNum >= win_smooth

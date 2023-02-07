@@ -17,6 +17,8 @@ global counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneH
     img_MC_moving_rolling_z refIm_crop_conjFFT_shift_masked counter_last_z_correction...
     counter_quiescenceHold...
     x_idx_raw y_idx_raw lam_vals...
+    Fneu_x_idx_raw Fneu_y_idx_raw Fneu_lam_vals...
+    meanImForMC_crop_conjFFT_shift...
 
 % persistent baselineStuff
 %% == USER SETTINGS ==
@@ -70,7 +72,10 @@ duration_buildingUpStats    = round(frameRate * 60 * 1);
 
 %% IMPORT FILES
 % currentImage = source.hSI.hDisplay.lastFrame{1};
-hash_image = simple_image_hash(currentImage);
+currentImage_gpu = gpuArray(currentImage);
+
+hash_image = simple_image_hash(currentImage);  %% slower on gpu
+% hash_image = gather(simple_image_hash(currentImage_gpu));
 
 % Should be TODAY's directory
 % directory = 'D:\RH_local\data\BMI_cage_1511_3\mouse_1\20221012\analysis_data';
@@ -80,21 +85,41 @@ borderOuter = 20;
 borderInner = 10;      
 
 if counter_frameNum==1 && strcmp(mode, 'BMI')
-    x_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2));
-    y_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3));
-    lam_vals = single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4));
+%     x_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2));
+%     y_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3));
+%     lam_vals = single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4));
+
+    x_idx_raw = gpuArray(int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2)));
+    y_idx_raw = gpuArray(int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3)));
+    lam_vals = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4)));
+    
+    % 02/02/2023 add Fneu_masks; Not gonna work for any baselineStuff
+    % created before 02/02/2023
+%     Fneu_x_idx_raw = int32(baselineStuff.ROIs.Fneu_masks_tall_warped(:,2));
+%     Fneu_y_idx_raw = int32(baselineStuff.ROIs.Fneu_masks_tall_warped(:,3));
+%     Fneu_lam_vals = single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,4));
+    
+    Fneu_x_idx_raw = gpuArray(int32(baselineStuff.ROIs.Fneu_masks_tall_warped(:,2)));
+    Fneu_y_idx_raw = gpuArray(int32(baselineStuff.ROIs.Fneu_masks_tall_warped(:,3)));
+    Fneu_lam_vals = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,4)));
+    Fneu_lam_vals(isnan(Fneu_lam_vals)) = 0;
+    Fneu_lam_vals = gpuArray(int16(Fneu_lam_vals));
+    
+%     meanImForMC_crop_conjFFT_shift = baselineStuff.MC.meanImForMC_crop_conjFFT_shift;
+    meanImForMC_crop_conjFFT_shift = gpuArray(baselineStuff.MC.meanImForMC_crop_conjFFT_shift);
 end
 
 % loadedCheck_registrationImage = []
 if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1 | isempty(registrationImage) | isempty(refIm_crop_conjFFT_shift) | isempty(indRange_y_Crop)
+%     ~exist('loadedCheck_registrationImage') , isempty(loadedCheck_registrationImage) , loadedCheck_registrationImage ~= 1 , isempty(registrationImage) , isempty(refIm_crop_conjFFT_shift) , isempty(indRange_y_Crop)
 %     type_stack = 'stack';
-    disp(['LOADED zstack'])
     registrationImage = eval(['zstack', '.stack_avg']);
     referenceDiffs = eval(['zstack','.step_size_um']);
     loadedCheck_registrationImage=1;
     
-
-%     clear refIm_crop_conjFFT_shift
+    registrationImage = gpuArray(registrationImage);
+    
+    clear refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked
     for ii = 1:size(registrationImage,1)
         [refIm_crop_conjFFT_shift(ii,:,:), ~, indRange_y_Crop, indRange_x_Crop] = make_fft_for_MC(squeeze(registrationImage(ii,:,:)));
         refIm_crop(ii,:,:) = registrationImage(ii, indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
@@ -147,12 +172,15 @@ end
 % saveParams('F:\RH_Local\Rich data\scanimage data\20191110\mouse 10.13B\expParams.mat')
 
 %% == MOTION CORRECTION ==
+% FASTER ON CPU THAN GPU
 % Make a cropped version of the current image for use in motion correction
-img_MC_moving = currentImage(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+% img_MC_moving = currentImage(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
+img_MC_moving = currentImage_gpu(indRange_y_Crop(1):indRange_y_Crop(2), indRange_x_Crop(1):indRange_x_Crop(2));
 
 % Track frames for fast 2D motion correction
-if ~isa(img_MC_moving_rolling, 'uint16') | size(img_MC_moving_rolling,3) ~= numFramesToAvgForMotionCorr
-    img_MC_moving_rolling = zeros([size(img_MC_moving) , numFramesToAvgForMotionCorr], 'uint16');
+if ~isa(img_MC_moving_rolling, 'gpuArray') | size(img_MC_moving_rolling,3) ~= numFramesToAvgForMotionCorr
+%     img_MC_moving_rolling = zeros([size(img_MC_moving) , numFramesToAvgForMotionCorr], 'int16');
+    img_MC_moving_rolling = gpuArray(zeros([size(img_MC_moving) , numFramesToAvgForMotionCorr], 'int16'));
     disp('making new img_MC_moving_rolling')
 end
 if counter_frameNum >= 0
@@ -162,32 +190,40 @@ img_MC_moving_rollingAvg = single(mean(img_MC_moving_rolling,3));
 
 
 % Track frames for slow Z-axis motion correction
-if ~isa(img_MC_moving_rolling_z, 'uint16') | size(img_MC_moving_rolling_z,3) ~= numFramesToMedForZCorr
-    img_MC_moving_rolling_z = zeros([size(img_MC_moving) , numFramesToMedForZCorr], 'uint16');
+if ~isa(img_MC_moving_rolling_z, 'gpuArray') | size(img_MC_moving_rolling_z,3) ~= numFramesToMedForZCorr
+%     img_MC_moving_rolling_z = zeros([size(img_MC_moving) , numFramesToMedForZCorr], 'int16');
+    img_MC_moving_rolling_z = gpuArray(zeros([size(img_MC_moving) , numFramesToMedForZCorr], 'int16'));
 end
 if (counter_frameNum >= 0) && (mod(counter_frameNum, zCorrFrameInterval) == 0)
     img_MC_moving_rolling_z(:,:,mod(counter_frameNum/zCorrFrameInterval ,numFramesToMedForZCorr)+1) = img_MC_moving;
 end
 
-if ~CE_trial
-    [delta, frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
-        maskPref, borderOuter, borderInner);
-else
-    delta=0;
-    frame_corrs = [0,0,0];
-end
+% if ~CE_trial
+%     [delta, frame_corrs, xShifts, yShifts] = calculate_z_position(img_MC_moving_rolling_z, registrationImage, refIm_crop_conjFFT_shift_masked, referenceDiffs,...
+%         maskPref, borderOuter, borderInner);
+% else
+%     delta=0;
+%     frame_corrs = [0,0,0];
+% end
+delta=0;
+frame_corrs = [0,0,0];
 
-if strcmp(mode, 'BMI')
-    [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , baselineStuff.MC.meanImForMC_crop_conjFFT_shift, maskPref, borderOuter, borderInner);
-elseif strcmp(mode, 'baseline')
-    [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift_masked(2,:,:)), maskPref, borderOuter, borderInner);
-end
-MC_corr = max(cxx);
+% if strcmp(mode, 'BMI')
+%     [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , meanImForMC_crop_conjFFT_shift, maskPref, borderOuter, borderInner);
+% elseif strcmp(mode, 'baseline')
+%     [xShift , yShift, cxx, cyy] = motionCorrection_ROI(img_MC_moving_rollingAvg , [] , squeeze(refIm_crop_conjFFT_shift_masked(2,:,:)), maskPref, borderOuter, borderInner);
+% end
+% MC_corr = max(cxx);
+% xShift = int32(xShift);
+% yShift = int32(yShift);
+
+[xShift , yShift , cxx , cyy] = motionCorrection_ROI(movingIm , refIm, refIm_conjFFT_padded, maskPref, borderOuter, borderInner)
+[shifts_y_x, cc_max] = find_translation_shifts(refIm, movingIm, 'None', 'cpu')
 
 
-% xShift = 0;
-% yShift = 0;
-% MC_corr = 0;
+xShift = 0;
+yShift = 0;
+MC_corr = 0;
 
 
 if abs(xShift) >60
@@ -197,13 +233,14 @@ if abs(yShift) >60
     yShift = 0;
 end
 %% == EXTRACT DECODER Product of Current Image and Decoder Template ==
+% FASTER ON GPU
 if strcmp(mode, 'BMI')
     % New extractor
     % tic
     x_idx     =  x_idx_raw + xShift;
     y_idx     =  y_idx_raw + yShift;
 
-    idx_safe = single((x_idx < 1024) &...
+    idx_safe = ((x_idx < 1024) &...
         (x_idx > 0) & ...
         (y_idx < 512) & ...
         (y_idx > 0));
@@ -215,13 +252,50 @@ if strcmp(mode, 'BMI')
 
     x_idx(~idx_safe) = 1;
     y_idx(~idx_safe) = 1;
+    
+    % Fneu stuff would not work for baselineStuff generated before 02/02/2023
+    % neuropil pixels in frame?
+    Fneu_x_idx     =  Fneu_x_idx_raw + xShift;
+    Fneu_y_idx     =  Fneu_y_idx_raw + yShift;
 
-    tall_currentImage = single(currentImage(sub2ind(size(currentImage), y_idx , x_idx)));
+    Fneu_idx_safe = ((Fneu_x_idx < 1024) &...
+        (Fneu_x_idx > 0) & ...
+        (Fneu_y_idx < 512) & ...
+        (Fneu_y_idx > 0));
+
+    Fneu_x_idx(~Fneu_idx_safe) = 1;
+    Fneu_y_idx(~Fneu_idx_safe) = 1;  
+    
+    
+    % Calculate current frame F / Fneu: lam should be normalized to sum=1,
+    % then to get F, F=image(pixels) @ lam (its a sum)
+%     tall_currentImage = single(currentImage(sub2ind(size(currentImage), y_idx , x_idx)));
+    tall_currentImage = single(currentImage_gpu(sub2ind(size(currentImage_gpu), y_idx , x_idx)));
     % toc
     % TA_CF_lam = tall_currentImage .* baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-    TA_CF_lam = tall_currentImage .* lam_vals .* idx_safe;
+%     TA_CF_lam = tall_currentImage .* lam_vals .* idx_safe;
+    TA_CF_lam = tall_currentImage .* lam_vals;
+    TA_CF_lam(idx_safe) = 0;
     TA_CF_lam_reshape = reshape(TA_CF_lam , baselineStuff.ROIs.cell_size_max , numCells);
-    vals_neurons = nansum( TA_CF_lam_reshape , 1 );
+    
+    % Calculate Fneu: 'lam' is specified by s2p as just the pixels because
+    % the lambda values are all 1. Fneu = (mean(image(pixels))). So we just
+    % pre normalize the lam values and take a sum
+%     tall_currentImage_Fneu = single(currentImage(sub2ind(size(currentImage), Fneu_y_idx , Fneu_x_idx)));
+    tall_currentImage_Fneu = (currentImage_gpu(sub2ind(size(currentImage_gpu), Fneu_y_idx , Fneu_x_idx)));
+%     TA_CF_Fneu_lam = tall_currentImage_Fneu .* Fneu_lam_vals .* Fneu_idx_safe;
+    TA_CF_Fneu_lam = tall_currentImage_Fneu .* Fneu_lam_vals;
+    TA_CF_Fneu_lam(idx_safe) = 0;
+    TA_CF_Fneu_lam_reshape = reshape(TA_CF_Fneu_lam , baselineStuff.ROIs.neuropil_size_max , numCells);
+    
+%     % Subtract 0.7 * Fneu from F
+%     vals_neurons = ones(1,numCells);
+%     vals_neurons = nansum( TA_CF_lam_reshape , 1 );
+    vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - nansum(TA_CF_Fneu_lam_reshape, 1) * 0.7;
+    
+%     vals_neurons = cellfun(@gather, vals_neurons, 'UniformOutput', false);
+    vals_neurons = gather(vals_neurons);
+
 elseif strcmp(mode, 'baseline')
     vals_neurons = NaN;
 end
@@ -236,7 +310,9 @@ if CE_experimentRunning
             next_idx = mod(counter_runningVals-1 , numSamples_rollingStats)+1;
             vals_old = runningVals(next_idx , :);
             runningVals(next_idx,:) = vals_neurons;
-            [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
+            % 20230126 Now, counter_frameNum follows ScanImage Frames Done
+%             [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(counter_frameNum , runningVals(next_idx,:) , vals_old);
+            [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(runningVals(next_idx,:) , vals_old);
             counter_runningVals = counter_runningVals+1;
         end
         if counter_frameNum == 1
@@ -258,7 +334,8 @@ if CE_experimentRunning
         next_idx = mod(counter_runningCursor-1 , duration_rollingStats)+1;
         vals_old = running_cursor_raw(next_idx);
         running_cursor_raw(next_idx) = cursor_brain_raw;
-        [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
+%         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(counter_frameNum , running_cursor_raw(next_idx) , vals_old);
+        [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(running_cursor_raw(next_idx) , vals_old);
         counter_runningCursor = counter_runningCursor+1;
 
         if counter_frameNum >= win_smooth
@@ -614,9 +691,12 @@ if ~isnan(counter_frameNum)
     logger.decoder(counter_frameNum,4) = freqToOutput; % note that this is just approximate, since calculation is done on teensy
     logger.decoder(counter_frameNum,5) = voltage_cursorCurrentPos;
     
-    logger.motionCorrection(counter_frameNum,1) = xShift;
-    logger.motionCorrection(counter_frameNum,2) = yShift;
-    logger.motionCorrection(counter_frameNum,3) = MC_corr;
+%     logger.motionCorrection(counter_frameNum,1) = xShift;
+%     logger.motionCorrection(counter_frameNum,2) = yShift;
+%     logger.motionCorrection(counter_frameNum,3) = MC_corr;
+    logger.motionCorrection(counter_frameNum,1) = gather(xShift);
+    logger.motionCorrection(counter_frameNum,2) = gather(yShift);
+    logger.motionCorrection(counter_frameNum,3) = gather(MC_corr);
 %     logger.motionCorrection(counter_frameNum,4) = source.hSI.hFastZ.currentFastZs{1}.targetPosition;
     logger.motionCorrection(counter_frameNum,5) = delta_moved;
     logger.motionCorrection(counter_frameNum,6:8) = frame_corrs; 
@@ -901,7 +981,6 @@ end
 
         [delta, frame_corrs, xShifts, yShifts] = zCorrection(image_toUse, registrationImage, ...
             refIm_crop_conjFFT_shift, referenceDiffs, maskPref, borderOuter, borderInner);
-        
     end
 
     function currentPosition = moveFastZ(source, evt, delta, position, range_position)
@@ -936,5 +1015,5 @@ end
         source.hSI.hFastZ.move(fastZDevice, newPosition);
 
     end
-    toc
+%     toc
 end

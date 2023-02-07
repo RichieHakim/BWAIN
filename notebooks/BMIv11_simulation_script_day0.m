@@ -21,12 +21,14 @@ dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analy
 %% Import trialStuff for today's experiment
 fileName_trialStuff = 'trialStuff.mat';
 
-dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230112\analysis_data';
+dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
 path_trialStuff = [dir_analysis_dayN , '\' , fileName_trialStuff];
 load(path_trialStuff);
 
 %% Import baselineStuff from Day 0 or N 
-fileName_baselineStuff = 'baselineStuff_day0.mat';
+% fileName_baselineStuff = 'baselineStuff_day0.mat';
+fileName_baselineStuff = 'baselineStuff_test.mat';
+
 
 path_baselineStuff = [dir_analysis_day0 , '\' , fileName_baselineStuff];
 % path_baselineStuff = [dir_analysis_dayN , '\' , 'baselineStuff.mat'];
@@ -52,7 +54,7 @@ stack = stack_warped;
 
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\BMI_cage_1511_3\mouse_B\20221020\scanimage_data\baseline';
+directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\scanimage_data\exp';
 fileName_movie = 'exp';
 % fileName_movie = 'baseline';
 
@@ -146,32 +148,42 @@ end
 cellNumsToUse =     baselineStuff.cellNumsToUse;
 %% Simulation (new)
 
-F_double = double(Fall.F);
+% F_double = double(Fall.F);
 
-% num_frames = size(movie_all, 3);
-num_frames = size(F_double, 2);
+num_frames = size(movie_all, 3);
+% num_frames = size(F_double, 2);
 
-threshold_reward = 2.0;
+threshold_reward = 1.7;
 threshold_quiescence = 0;
 duration_quiescenceHold = 0.5; % in second
+% duration_quiescenceHold = 0;
 
+t = NaN(1,num_frames);
 for ii = 1:num_frames
-    %     tic
+        tic
 %         ii
     if ii<num_frames
-        BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
-%         BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+%         BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
+        BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
     else
-        [logger , logger_valsROIs2 , numRewardsAcquired] = BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
-%         [logger , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+%         [logger , logger_valsROIs2 , numRewardsAcquired] = BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
+        [logger , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
     end
-    %     toc
+        t(ii) = toc;
     if mod(ii,1000)==0 || ii==1 || ii==2
 %     if 1
         fprintf('%s\n' , [num2str(ii) , '/' , num2str(num_frames)])
     end
 end
 % toc
+%%
+figure;
+hold on;
+histogram(t*1000, [0.0:0.0002:0.02]*1000);
+xlim([0,0.02*1000])
+xlabel(['script time (ms)'])
+disp(['mean: ', num2str(nanmean(t)), 'std: ', num2str(nanstd(t))])
+
 %%
 Fs = 30; % fps
 % duration_inMinutes = num_frames / (Fs*60);
@@ -200,10 +212,10 @@ figure;
 % plot(weights_day0.regression_output.regression_goalSignal-0.55)
 plot(logger.decoder(1:num_frames,1))
 %% save
-save_dir =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
-save([save_dir , '\' ,'numRewardsAcquired_PC1'] , 'numRewardsAcquired');
-save([save_dir , '\' , 'reward_rate_per_min_PC1'] , 'reward_rate_per_min');
-save([save_dir , '\' , 'logger_simulation_PC1'] , 'logger');
+save_dir =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230125\analysis_data';
+save([save_dir , '\' ,'numRewardsAcquired_PC3'] , 'numRewardsAcquired');
+save([save_dir , '\' , 'reward_rate_per_min_PC3'] , 'reward_rate_per_min');
+save([save_dir , '\' , 'logger_simulation_PC3'] , 'logger');
 
 
 

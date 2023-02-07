@@ -5,6 +5,27 @@
 
 % based on program_EnsembleSelection9_manyCells
 
+%% Important Parameters
+% 01/29/2023
+
+% Use day 0
+directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\scanimage_data\exp';
+fileName_movie = 'exp_00';
+% fileName_movie = 'baseline_00';
+
+% Load Weights
+% Should be in day N-1 or day 0 folder
+directory_weights = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
+fileName_weights = 'weights_day0.mat';
+load([directory_weights '\' fileName_weights]);
+
+% Choose PCn as decoder dimension
+factor_to_use = 3; % 1-indexed
+
+% idx_zeroOut = [[215, 339];[798, 899]];  %% [[y1, y2];, [x1, x2]] OR NaN
+idx_zeroOut = NaN;  %% [[y1, y2];, [x1, x2]] OR NaN
+
+%% Loading
 % directory_refImOld = 'D:\RH_local\data\scanimage data\round 4 experiments\mouse 6.28\20201010';
 % % fileName_refImOld = 'refImOld.mat';
 % fileName_refImOld = 'baselineStuff.mat';
@@ -19,19 +40,9 @@ load([dir_Fall '\' fileName_Fall]);
 directory_zstack = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
 % stack_beforeWarp = load([directory_zstack , '\stack.mat']);
 stack_beforeWarp = load([directory_zstack , '\stack_sparse.mat']);
-
-% Use day 0
-directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230114\scanimage_data\baseline';
-% fileName_movie = 'exp_00';
-fileName_movie = 'baseline_00';
 %%
 % path_spatialFootprints = 'D:\\RH_local\\data\\scanimage data\\round 5 experiments\\mouse 2_6\\20210410_test\\analysis_lastNight\\spatial_footprints_aligned.h5';
 
-%%
-% Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
-fileName_weights = 'weights_day0.mat';
-load([directory_weights '\' fileName_weights]);
 %% Import and downsample movie
 frames_totalExpected = 4000;
 frames_perFile = 1000;
@@ -121,10 +132,6 @@ frame_width = size(movie_all,2);
 % frame_width = 1024;
 
 paddingForMCRef = 50;
-
-idx_zeroOut = [[215, 339];[798, 899]];  %% [[y1, y2];, [x1, x2]] OR NaN
-% idx_zeroOut = NaN;  %% [[y1, y2];, [x1, x2]] OR NaN
-
 %% Make mean image (meanImForMC)
 % basically it just makes a mean image from the end of a movie. It first
 % makes a mean image from a bunch of frames from the end of the video. It
@@ -273,9 +280,6 @@ refImOld = single(ops.refImg); % make the reference image the Suite2p output ref
 cellNumsToUse   = find(iscell_custom);
 % cellNumsToUse   = 1:100;
 
-% PCn
-factor_to_use = 1; % 1-indexed
-
 % cellWeightings  = weights(iscell_custom);
 % cellWeightings  = rand(length(cellNumsToUse),1);
 
@@ -283,16 +287,24 @@ factor_to_use = 1; % 1-indexed
 numCells = length(weights_all(:, factor_to_use)'); % in 1-indexed (matlab) indices
 
 cell_size_max = 230; % in pixels
+neuropil_size_max = 800; % in pixels
 
 %% make weighted footprints
 spatial_footprints = zeros(numCells , frame_height , frame_width);
 spatial_footprints_weighted = zeros(numCells , frame_height , frame_width);
-for ii = 1:length(cellNumsToUse)
-    for jj = 1:stat{cellNumsToUse(ii)}.npix
-        spatial_footprints(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj);
-    end
-end
+Fneu_masks = zeros(numCells , frame_width , frame_height);
 
+for ii = 1:length(cellNumsToUse)
+    lam = stat{cellNumsToUse(ii)}.lam;
+    lam = lam / sum(lam);
+    for jj = 1:stat{cellNumsToUse(ii)}.npix
+        spatial_footprints(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = lam(jj);
+    end
+    Fneu_masks(ii, stat{1,cellNumsToUse(ii)}.neuropil_mask) = 1;
+end
+Fneu_masks = permute(Fneu_masks, [1 3 2]);
+
+% only used if idx_zeroOut is specified above
 if ~isnan(idx_zeroOut)
     mask_zeroOut = zeros(frame_height, frame_width);
     mask_zeroOut(idx_zeroOut(1,1): idx_zeroOut(1,2), idx_zeroOut(2,1): idx_zeroOut(2,2)) = 1;
@@ -303,9 +315,12 @@ else
     cellWeightings = weights_all(:, factor_to_use)';
 end
 
+% just for visualization purposes
 for ii = 1:length(cellNumsToUse)
+    lam = stat{cellNumsToUse(ii)}.lam;
+    lam = lam / sum(lam);
     for jj = 1:stat{cellNumsToUse(ii)}.npix
-        spatial_footprints_weighted(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = stat{cellNumsToUse(ii)}.lam(jj) .* cellWeightings(ii);
+        spatial_footprints_weighted(ii , stat{cellNumsToUse(ii)}.ypix(jj)+1 , stat{cellNumsToUse(ii)}.xpix(jj)+1) = lam(jj) .* cellWeightings(ii);
     end
 end
 
@@ -413,13 +428,22 @@ imshowpair(squeeze(stack_beforeWarp.stack_sparse.stack_avg(3,:,:)), squeeze(stac
 
 %% new 'tall' stuff (short and fat now)
 cell_sizes = nan(size(spatial_footprints,1),1);
+Fneu_mask_sizes = nan(size(spatial_footprints,1),1);
 spatial_footprints_warped = spatial_footprints;
+Fneu_masks_warped = Fneu_masks;
 spatial_footprints_tall = [];
 spatial_footprints_tall_warped = [];
+Fneu_masks_tall = [];
+Fneu_masks_tall_warped = [];
 for ii = 1:size(spatial_footprints,1)
+    % Warp F / Fneu masks
     tmp_spatial_footprint= imwarp(squeeze(spatial_footprints(ii,:,:)) , D_field);
-    spatial_footprints_warped(ii,:,:) = tmp_spatial_footprint;
+    tmp_Fneu_mask = imwarp(squeeze(Fneu_masks(ii,:,:)), D_field);
     
+    spatial_footprints_warped(ii,:,:) = tmp_spatial_footprint;
+    Fneu_masks_warped(ii,:,:) = tmp_Fneu_mask;
+    
+    % Find nonzeros idx to create tall array: F masks
     nonzeros_ind = find(tmp_spatial_footprint ~= 0);
     cell_sizes(ii) = length(nonzeros_ind);
     [nonzeros_subY , nonzeros_subX] = ind2sub([frame_height, frame_width] , nonzeros_ind);
@@ -429,8 +453,22 @@ for ii = 1:size(spatial_footprints,1)
     
     spatial_footprints_tall_warped = cat(1, spatial_footprints_tall_warped , tmp_tallStuff);
     
+    % Find nonzeros idx to create tall array: Fneu masks
+    Fneu_nonzeros_ind = find(tmp_Fneu_mask ~= 0);
+    % remove a random subset of pixels to reduce size of neuropil mask
+    Fneu_nonzeros_ind = Fneu_nonzeros_ind(randperm(length(Fneu_nonzeros_ind)));
+    Fneu_nonzeros_ind = Fneu_nonzeros_ind(1:min(neuropil_size_max, length(Fneu_nonzeros_ind)));
+    % finish with the indexing (same as spatial_footprints)
+    Fneu_mask_sizes(ii) = length(Fneu_nonzeros_ind);
+    [Fneu_nonzeros_subY , Fneu_nonzeros_subX] = ind2sub([frame_height, frame_width] , Fneu_nonzeros_ind);
+    Fneu_nonzeros_lam = ones(size(Fneu_nonzeros_ind));
+    tmp_Fneu_tallStuff = [ones(length(Fneu_nonzeros_ind), 1)*(cellNumsToUse(ii)) , Fneu_nonzeros_subX , Fneu_nonzeros_subY , Fneu_nonzeros_lam];
+    tmp_Fneu_tallStuff = pad_or_crop_tmp_tallStuff(tmp_Fneu_tallStuff , neuropil_size_max);
+    
+    Fneu_masks_tall_warped = cat(1, Fneu_masks_tall_warped , tmp_Fneu_tallStuff);
     
     
+    % Just Visualization
     tmp_spatial_footprint= squeeze(spatial_footprints(ii,:,:));
     
     nonzeros_ind = find(tmp_spatial_footprint ~= 0);
@@ -447,12 +485,19 @@ end
 
 SPT_idxNaN = isnan(spatial_footprints_tall(:,1));
 SPT_warped_idxNaN = isnan(spatial_footprints_tall_warped(:,1));
-
+Fneu_warped_idxNaN = isnan(Fneu_masks_tall_warped(:,1));
+%%
 figure;
 histogram(cell_sizes)
 xlabel('cell sizes (pixels)')
 disp(['99th percentile of cell sizes is: ' num2str(ceil(prctile(cell_sizes,99))) ' pixels' ])
-%%
+
+figure;
+histogram(Fneu_mask_sizes)
+xlabel('neuropil mask sizes (pixels)')
+disp(['99th percentile of neuropil mask sizes is: ' num2str(ceil(prctile(Fneu_mask_sizes,99))) ' pixels' ])
+
+%% Visualization only; variables here are not for online BMI
 cellWeightings_tall = zeros(size(spatial_footprints_tall,1) , 1);
 for ii = 1:numCells
     cellWeightings_tall(spatial_footprints_tall(:,1) == cellNumsToUse(ii)) = cellWeightings(ii);
@@ -478,6 +523,9 @@ spatial_footprints_all_weighted(sub2ind([frame_height,frame_width] , spatial_foo
 spatial_footprints_warped_all = zeros(frame_height , frame_width);
 spatial_footprints_warped_all(sub2ind([frame_height,frame_width] , spatial_footprints_tall_warped(~SPT_warped_idxNaN,3) , spatial_footprints_tall_warped(~SPT_warped_idxNaN,2))) = spatial_footprints_tall_warped(~SPT_warped_idxNaN,4);
 
+Fneu_masks_warped_all = zeros(frame_height , frame_width);
+Fneu_masks_warped_all(sub2ind([frame_height,frame_width] , Fneu_masks_tall_warped(~Fneu_warped_idxNaN,3) , Fneu_masks_tall_warped(~Fneu_warped_idxNaN,2))) = Fneu_masks_tall_warped(~Fneu_warped_idxNaN,4);
+
 spatial_footprints_warped_weighted_all = zeros(frame_height , frame_width);
 spatial_footprints_warped_weighted_all(sub2ind([frame_height,frame_width] , spatial_footprints_tall_warped_weighted(~SPT_warped_idxNaN,3) , spatial_footprints_tall_warped_weighted(~SPT_warped_idxNaN,2))) = spatial_footprints_tall_warped_weighted(~SPT_warped_idxNaN,4);
 
@@ -486,8 +534,12 @@ figure;
 imshowpair(real(spatial_footprints_all .^1) , real(spatial_footprints_warped_all .^1))
 % figure;
 % imshow(spatial_footprints_warped_weighted_all ,[])
-
-%% Transofrm coordinate indices
+%%
+figure;
+imshowpair(real(spatial_footprints_warped_all .^1) , real(Fneu_masks_warped_all .^1))
+% figure;
+% imshow(spatial_footprints_warped_weighted_all ,[])
+%% Transform coordinate indices
 for ii = 1:numel(cellNumsToUse)
     idxBounds_ROI{ii}(1,1) = min(stat{cellNumsToUse(ii)}.xpix)+1; % note that idxBounds_ROI will be [[x1;x2] , [y1;y2]]
     idxBounds_ROI{ii}(2,1) = max(stat{cellNumsToUse(ii)}.xpix)+1;
@@ -591,6 +643,9 @@ baselineStuff.ROIs.spatial_footprints_tall_warped = spatial_footprints_tall_warp
 baselineStuff.ROIs.spatial_footprints_tall_weighted = spatial_footprints_tall_weighted;
 baselineStuff.ROIs.spatial_footprints_tall_warped_weighted = spatial_footprints_tall_warped_weighted;
 
+baselineStuff.ROIs.Fneu_masks = Fneu_masks;
+baselineStuff.ROIs.Fneu_masks_tall_warped = Fneu_masks_tall_warped;
+
 baselineStuff.ROIs.spatial_footprints_all = spatial_footprints_all;
 baselineStuff.ROIs.spatial_footprints_warped_all = spatial_footprints_warped_all;
 baselineStuff.ROIs.spatial_footprints_warped_weighted_all = spatial_footprints_warped_weighted_all;
@@ -600,6 +655,7 @@ baselineStuff.ROIs.SPT_idxNaN = SPT_idxNaN;
 baselineStuff.ROIs.SPT_warped_idxNaN = SPT_warped_idxNaN;
 
 baselineStuff.ROIs.cell_size_max = cell_size_max;
+baselineStuff.ROIs.neuropil_size_max = neuropil_size_max;
 baselineStuff.ROIs.num_cells = numCells;
 
 baselineStuff.ROIs.cellWeightings = cellWeightings;
@@ -617,11 +673,13 @@ baselineStuff.factor_to_use = factor_to_use;
 %%
 baselineStuff.framesForMeanImForMC = [];
 % path_save = [directory_weights, '\baselineStuff_day0'];
-path_save = [directory_today, '\baselineStuff.mat'];
+path_save = [directory_today, '\baselineStuff_test.mat'];
+% path_save = [directory_today, '\baselineStuff_PC3.mat'];
 save(path_save, 'baselineStuff','-v7.3')
 disp(['Saved baselineStuff to:  ' ,path_save]) 
 
-path_stack_warped =  [directory_today, '\stack_warped.mat'];
+%%
+path_stack_warped =  [directory_today, '\stack_warped_test.mat'];
 save(path_stack_warped, 'stack_warped');
 disp(['Saved warped stack to:  ' ,path_stack_warped]) 
 % save(['F:\RH_Local\Rich data\scanimage data\mouse 1.31\baselineStuff'], 'baselineStuff')

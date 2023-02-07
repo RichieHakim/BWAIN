@@ -24,8 +24,13 @@
 
 function [delta, MC_corr, xShifts, yShifts] = zCorrection(image, reference, reference_fft, reference_diffs, maskPref, borderOuter, borderInner)
     n_slices = size(reference, 1);
-    cxx = NaN(n_slices, size(image,1));
-    cyy = NaN(n_slices, size(image,2));
+    if existsOnGPU(image)
+        cxx = NaN(n_slices, size(image,1), 'single', 'gpuArray');
+        cyy = NaN(n_slices, size(image,2), 'single', 'gpuArray');
+    else
+        cxx = NaN(n_slices, size(image,1));
+        cyy = NaN(n_slices, size(image,2));
+    end
     for z_frame = 1:n_slices
         if ~isempty(reference_fft)
             refIm_tmp = [];
