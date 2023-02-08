@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 
+from typing import Tuple
+
 ###############################################################################################################
 ######################################### IMAGE PROCESSING ####################################################
 ###############################################################################################################
@@ -36,7 +38,7 @@ def phase_correlation_helper(
     R = fft_template * fft_moving
 
     if compute_maskFFT:
-        R[mask_fft != 0] /= torch.abs(R)[mask_fft != 0]
+        R /= torch.abs(R + 1e-10)
     else:
         R /= torch.abs(R)
     
@@ -251,9 +253,46 @@ def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
 ########################################## TORCH HELPERS ######################################################
 ###############################################################################################################
 
-def unravel_index(index, shape):
-    out = []
-    for dim in shape[::-1]:
-        out.append(index % dim)
-        index = index // dim
-    return tuple(out[::-1])
+# def unravel_index(index, shape):
+#     out = []
+#     for dim in shape[::-1]:
+#         out.append(index % dim)
+#         index = index // dim
+#     return tuple(out[::-1])
+
+# ## version compatible with torch.jit.script
+# @torch.jit.script
+# def unravel_index(index: torch.Tensor, shape: torch.Tensor):
+#     num_dims = shape.shape[0]
+#     out = torch.zeros(num_dims, dtype=torch.int64)
+#     for i, dim in enumerate(shape[::-1]):
+#         out[i] = index % dim
+#         index = index // dim
+#     return tuple(out[::-1])
+
+# def unravel_index(indices: np.ndarray, shape: tuple) -> tuple:
+#     indices_arr = torch.from_numpy(indices)
+#     shape = list(shape)
+#     if np.any([s.ndim != 0 for s in shape]):
+#         raise ValueError("unravel_index: shape should be a scalar or 1D sequence.")
+#     out_indices = [0] * len(shape)
+#     for i, s in reversed(list(enumerate(shape))):
+#         indices_arr, out_indices[i] = torch.divmod(indices_arr, s)
+#     oob_pos = indices_arr > 0
+#     oob_neg = indices_arr < -1
+#     out_list = []
+#     for s, i in zip(shape, out_indices):
+#         out_list.append(torch.where(oob_pos, s - 1, torch.where(oob_neg, 0, i)))
+#     return tuple(out_list)
+
+@torch.jit.script
+def unravel_index(indices: torch.Tensor, shape: tuple) -> Tuple[torch.Tensor, ...]:
+  indices_arr = indices
+  shape = list(shape)
+  out_indices = [0] * len(shape)
+  for i, s in reversed(list(enumerate(shape))):
+    indices_arr, out_indices[i] = torch.divmod(indices_arr, s)
+  oob_pos = indices_arr > 0
+  oob_neg = indices_arr < -1
+  return tuple(torch.where(oob_pos, s - 1, torch.where(oob_neg, 0, i))
+               for s, i in zip(shape, out_indices))
