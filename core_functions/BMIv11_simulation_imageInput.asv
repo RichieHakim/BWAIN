@@ -110,6 +110,7 @@ if counter_frameNum==1 && strcmp(mode, 'BMI')
 end
 
 % loadedCheck_registrationImage = []
+refIm_crop_conjFFT_shift
 if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1 | isempty(registrationImage) | isempty(refIm_crop_conjFFT_shift) | isempty(indRange_y_Crop)
 %     ~exist('loadedCheck_registrationImage') , isempty(loadedCheck_registrationImage) , loadedCheck_registrationImage ~= 1 , isempty(registrationImage) , isempty(refIm_crop_conjFFT_shift) , isempty(indRange_y_Crop)
 %     type_stack = 'stack';
@@ -120,7 +121,7 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
 %     registrationImage = gpuArray(registrationImage);
     
     clear refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked
-    global refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked;
+    global refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked
 %     refIm_crop_conjFFT_shift = {};
     for ii = 1:size(registrationImage,1)
         [refIm_crop_conjFFT_shift(ii,:,:), ~, indRange_y_Crop, indRange_x_Crop] = make_fft_for_MC(squeeze(registrationImage(ii,:,:)));
@@ -140,6 +141,7 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
     
     disp('Loaded z-stack')
 end
+refIm_crop_conjFFT_shift
 
 if strcmp(mode, 'BMI')
     % numCells = max(baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,1));
