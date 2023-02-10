@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from typing import Tuple
+from typing import Tuple, List
 
 ###############################################################################################################
 ######################################### IMAGE PROCESSING ####################################################
@@ -111,13 +111,19 @@ def phase_correlation(
         cc = cc.cpu().numpy()
     return cc
 
-# @torch.jit.script
+@torch.jit.script 
 def phaseCorrelationImage_to_shift_helper(cc_im):
+    cc_im_shape = cc_im.shape
     cc_im = cc_im[None,:] if cc_im.ndim==2 else cc_im
-    height, width = torch.as_tensor(cc_im.shape[-2:])
-    vals_max, idx = torch.max(cc_im.reshape(cc_im.shape[0], cc_im.shape[1]*cc_im.shape[2]), dim=1)
-    _, shift_y_raw, shift_x_raw = unravel_index(idx, cc_im.shape)
-    shifts_y_x = torch.stack(((torch.floor(height/2) - shift_y_raw) , (torch.ceil(width/2) - shift_x_raw)), dim=1)
+    vals_max, idx = torch.max(cc_im.reshape(cc_im_shape[0], cc_im_shape[1]*cc_im_shape[2]), dim=1)
+    shift_x_raw = idx % cc_im_shape[2]
+    shift_y_raw = (idx // cc_im_shape[2]) % cc_im_shape[1]
+    shifts_y_x = torch.stack(
+        (
+            (torch.floor(torch.as_tensor(cc_im_shape[1])/2) - shift_y_raw),
+            (torch.ceil(torch.as_tensor(cc_im_shape[2])/2) - shift_x_raw)
+        ),
+        dim=1)
     return shifts_y_x, vals_max
 def phaseCorrelationImage_to_shift(cc_im):
     """
@@ -133,10 +139,17 @@ def phaseCorrelationImage_to_shift(cc_im):
         shifts (np.ndarray):
             Pixel shift values (y, x).
     """
-    cc_im = torch.as_tensor(cc_im)
+    if isinstance(cc_im, np.ndarray) == True:
+        cc_im = torch.as_tensor(cc_im)
+        return_numpy = True
+    else:
+        return_numpy = False
     shifts_y_x, cc_max = phaseCorrelationImage_to_shift_helper(cc_im)
-    return shifts_y_x, cc_max
-
+    
+    if return_numpy:
+        return shifts_y_x.cpu().numpy(), cc_max.cpu().numpy()
+    else:
+        return shifts_y_x, cc_max
 
 def mask_image_border(im, border_inner, border_outer, mask_value=0):
     """
@@ -249,50 +262,24 @@ def butter_bandpass(lowcut, highcut, fs, order=5, plot_pref=True):
         plt.ylabel('frequency response (a.u)')
     return b, a
 
+
 ###############################################################################################################
-########################################## TORCH HELPERS ######################################################
+############################################### OTHER #########################################################
 ###############################################################################################################
 
-# def unravel_index(index, shape):
-#     out = []
-#     for dim in shape[::-1]:
-#         out.append(index % dim)
-#         index = index // dim
-#     return tuple(out[::-1])
+def matlab_array_to_np_noCopy(arr):
+    return np.array(arr, copy=False)
 
-# ## version compatible with torch.jit.script
-# @torch.jit.script
-# def unravel_index(index: torch.Tensor, shape: torch.Tensor):
-#     num_dims = shape.shape[0]
-#     out = torch.zeros(num_dims, dtype=torch.int64)
-#     for i, dim in enumerate(shape[::-1]):
-#         out[i] = index % dim
-#         index = index // dim
-#     return tuple(out[::-1])
+def matlab_array_to_torch_noCopy(arr, device='cpu', dtype=torch.float32):
+    return torch.as_tensor(np.array(arr, copy=False), device=device, dtype=dtype)
 
-# def unravel_index(indices: np.ndarray, shape: tuple) -> tuple:
-#     indices_arr = torch.from_numpy(indices)
-#     shape = list(shape)
-#     if np.any([s.ndim != 0 for s in shape]):
-#         raise ValueError("unravel_index: shape should be a scalar or 1D sequence.")
-#     out_indices = [0] * len(shape)
-#     for i, s in reversed(list(enumerate(shape))):
-#         indices_arr, out_indices[i] = torch.divmod(indices_arr, s)
-#     oob_pos = indices_arr > 0
-#     oob_neg = indices_arr < -1
-#     out_list = []
-#     for s, i in zip(shape, out_indices):
-#         out_list.append(torch.where(oob_pos, s - 1, torch.where(oob_neg, 0, i)))
-#     return tuple(out_list)
+def function_call(func_str, args=[], kwargs={}):
+    f_list = func_str.split('.')
+    
+    f_cum_str = ''
+    for ii, f in enumerate(f_list[:-1]):
+        f_cum_str = f if ii==0 else f_cum_str+'.'+f
+        exec(f'import {f_cum_str}')
+    func = eval(func_str)
 
-@torch.jit.script
-def unravel_index(indices: torch.Tensor, shape: tuple) -> Tuple[torch.Tensor, ...]:
-  indices_arr = indices
-  shape = list(shape)
-  out_indices = [0] * len(shape)
-  for i, s in reversed(list(enumerate(shape))):
-    indices_arr, out_indices[i] = torch.divmod(indices_arr, s)
-  oob_pos = indices_arr > 0
-  oob_neg = indices_arr < -1
-  return tuple(torch.where(oob_pos, s - 1, torch.where(oob_neg, 0, i))
-               for s, i in zip(shape, out_indices))
+    return func(*args, **kwargs)
