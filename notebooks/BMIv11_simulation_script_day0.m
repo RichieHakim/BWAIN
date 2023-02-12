@@ -1,15 +1,16 @@
 % Run simulation
 
 % import Fall.mat file
-dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 
 path_Fall = [dir_Fall , '\' , fileName_Fall];
 Fall = load(path_Fall);
 
+%%
 % Import weights computed from Day 0
 
-dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
+dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data';
 % fileName_weightsDay0 = 'weights_day0.mat';
 % 
 % path_weightsDay0 = [dir_analysis_day0 , '\' , fileName_weightsDay0];
@@ -21,13 +22,13 @@ dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analy
 %% Import trialStuff for today's experiment
 fileName_trialStuff = 'trialStuff.mat';
 
-dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data';
+dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data';
 path_trialStuff = [dir_analysis_dayN , '\' , fileName_trialStuff];
 load(path_trialStuff);
 
 %% Import baselineStuff from Day 0 or N 
 % fileName_baselineStuff = 'baselineStuff_day0.mat';
-fileName_baselineStuff = 'baselineStuff_test.mat';
+fileName_baselineStuff = 'baselineStuff.mat';
 
 
 path_baselineStuff = [dir_analysis_day0 , '\' , fileName_baselineStuff];
@@ -54,7 +55,7 @@ stack = stack_warped;
 
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\scanimage_data\exp';
+directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\scanimage_data\exp';
 fileName_movie = 'exp';
 % fileName_movie = 'baseline';
 
@@ -152,6 +153,7 @@ cellNumsToUse =     baselineStuff.cellNumsToUse;
 % F_double = double(Fall.F);
 
 num_frames = size(movie_all, 3);
+num_frames = 1000;
 % num_frames = size(F_double, 2);
 
 threshold_reward = 1.7;
@@ -161,6 +163,7 @@ duration_quiescenceHold = 0.5; % in second
 
 t = NaN(1,num_frames);
 for ii = 1:num_frames
+% for ii = 1:1000
         tic
 %         ii
     if ii<num_frames
@@ -168,7 +171,7 @@ for ii = 1:num_frames
         BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
     else
 %         [logger , logger_valsROIs2 , numRewardsAcquired] = BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
-        [logger , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+        [logger , loggerNames , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
     end
         t(ii) = toc;
     if mod(ii,1000)==0 || ii==1 || ii==2

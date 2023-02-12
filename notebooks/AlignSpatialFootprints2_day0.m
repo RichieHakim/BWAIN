@@ -9,7 +9,7 @@
 % 01/29/2023
 
 % Use day 0
-directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\scanimage_data\exp';
+directory_today = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\scanimage_data\exp';
 fileName_movie = 'exp_00';
 % fileName_movie = 'baseline_00';
 

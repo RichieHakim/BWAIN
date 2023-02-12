@@ -1,4 +1,4 @@
-function [logger_output , logger_valsROIs_output  , NumOfRewardsAcquired] =...
+function [logger_output , loggerNames_output , logger_valsROIs_output  , NumOfRewardsAcquired] =...
     BMIv11_simulation_imageInput(currentImage, counter_frameNum , baselineStuff , trialStuff, zstack , last_frameNum , threshold_value , threshold_quiescence, num_frames_total)
 %% Variable stuff
 tic
@@ -19,6 +19,7 @@ global counter_trialIdx counter_CS_threshold counter_timeout counter_rewardToneH
     x_idx_raw y_idx_raw lam_vals...
     Fneu_x_idx_raw Fneu_y_idx_raw Fneu_lam_vals...
     meanImForMC_crop_conjFFT_shift...
+    pe device_MC shifter ...
 
 % persistent baselineStuff
 %% == USER SETTINGS ==
@@ -36,6 +37,7 @@ numFramesToMedForZCorr      = 30*4;
 zCorrFrameInterval          = 15; 
 interval_z_correction       = 20*frameRate;
 max_z_delta                 = 1;
+frame_shape_MC_yx           = [512, 512];
 
 % SETTINGS: Cursor
 range_cursor = [-threshold_value , threshold_value *1.5];
@@ -85,6 +87,20 @@ borderOuter = 20;
 borderInner = 10;      
 
 if counter_frameNum==1 && strcmp(mode, 'BMI')
+    %%% Motion correction python code prep
+    pe = pyenv('Version', 'C:\ProgramData\Miniconda\envs\matlab_env\python');  %% prepare python environment
+    py.importlib.import_module('bph.motion_correction');
+    device_MC = 'cuda';
+    shifter = py.bph.motion_correction.Shifter_rigid(device);
+    shifter.make_mask(py.tuple(frame_shape_MC_yx), py.tuple([1/10000, 1/2]), 5, 'None', 'False');
+    im = baselineStuff.MC.meanIm;
+    c_y = (size(im,1)-frame_shape_MC_yx(1))/2;
+    im = im(c_y, )
+    
+    shifter.preprocess_template_images(py.numpy.stack({im1_np, im2_np}, py.int(0)));
+
+    
+
 %     x_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2));
 %     y_idx_raw = int32(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3));
 %     lam_vals = single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4));
@@ -110,7 +126,6 @@ if counter_frameNum==1 && strcmp(mode, 'BMI')
 end
 
 % loadedCheck_registrationImage = []
-refIm_crop_conjFFT_shift
 if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationImage) | loadedCheck_registrationImage ~= 1 | isempty(registrationImage) | isempty(refIm_crop_conjFFT_shift) | isempty(indRange_y_Crop)
 %     ~exist('loadedCheck_registrationImage') , isempty(loadedCheck_registrationImage) , loadedCheck_registrationImage ~= 1 , isempty(registrationImage) , isempty(refIm_crop_conjFFT_shift) , isempty(indRange_y_Crop)
 %     type_stack = 'stack';
@@ -121,7 +136,7 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
 %     registrationImage = gpuArray(registrationImage);
     
     clear refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked
-    global refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked
+    global refIm_crop_conjFFT_shift refIm_crop refIm_crop_conjFFT_shift_masked;
 %     refIm_crop_conjFFT_shift = {};
     for ii = 1:size(registrationImage,1)
         [refIm_crop_conjFFT_shift(ii,:,:), ~, indRange_y_Crop, indRange_x_Crop] = make_fft_for_MC(squeeze(registrationImage(ii,:,:)));
@@ -141,7 +156,6 @@ if ~exist('loadedCheck_registrationImage') | isempty(loadedCheck_registrationIma
     
     disp('Loaded z-stack')
 end
-refIm_crop_conjFFT_shift
 
 if strcmp(mode, 'BMI')
     % numCells = max(baselineStuff.ROIs.spatial_footprints_tall_warped_weighted(:,1));
@@ -209,6 +223,8 @@ end
 %     delta=0;
 %     frame_corrs = [0,0,0];
 % end
+% frame_corrs = gather(frame_corrs);
+
 delta=0;
 frame_corrs = [0,0,0];
 
@@ -236,41 +252,47 @@ end
 if abs(yShift) >60
     yShift = 0;
 end
+
 %% == EXTRACT DECODER Product of Current Image and Decoder Template ==
 % FASTER ON GPU
 if strcmp(mode, 'BMI')
     % New extractor
-    % tic
-    x_idx     =  x_idx_raw + xShift;
-    y_idx     =  y_idx_raw + yShift;
+%     tic
+    x_idx     = x_idx_raw + xShift;
+    y_idx     = y_idx_raw + yShift;
 
-    idx_safe = ((x_idx < 1024) &...
-        (x_idx > 0) & ...
-        (y_idx < 512) & ...
-        (y_idx > 0));
-    % idx_safe_nan = idx_safe;
-    % idx_safe_nan(idx_safe_nan==0) = NaN;
+%     idx_safe = ((x_idx < 1024) &...
+%         (x_idx > 0) & ...
+%         (y_idx < 512) & ...
+%         (y_idx > 0));
+% 
+%     x_idx(~idx_safe) = 1;
+%     y_idx(~idx_safe) = 1;
 
-    % x_idx(isnan(x_idx)) = 1;
-    % y_idx(isnan(y_idx)) = 1;
-
-    x_idx(~idx_safe) = 1;
-    y_idx(~idx_safe) = 1;
+    y_idx = max(min(y_idx, 512), 1);
+    x_idx = max(min(x_idx, 1024), 1);
+    
+%     tic
     
     % Fneu stuff would not work for baselineStuff generated before 02/02/2023
     % neuropil pixels in frame?
     Fneu_x_idx     =  Fneu_x_idx_raw + xShift;
     Fneu_y_idx     =  Fneu_y_idx_raw + yShift;
-
-    Fneu_idx_safe = ((Fneu_x_idx < 1024) &...
-        (Fneu_x_idx > 0) & ...
-        (Fneu_y_idx < 512) & ...
-        (Fneu_y_idx > 0));
-
-    Fneu_x_idx(~Fneu_idx_safe) = 1;
-    Fneu_y_idx(~Fneu_idx_safe) = 1;  
     
+%     Fneu_idx_safe = ((Fneu_x_idx < 1024) &...
+%         (Fneu_x_idx > 0) & ...
+%         (Fneu_y_idx < 512) & ...
+%         (Fneu_y_idx > 0));
+% 
+%     Fneu_x_idx(~Fneu_idx_safe) = 1;
+%     Fneu_y_idx(~Fneu_idx_safe) = 1;  
+
+    Fneu_y_idx = max(min(Fneu_y_idx, 512), 1);
+    Fneu_x_idx = max(min(Fneu_x_idx, 1024), 1);
+
     
+%     toc
+%     tic
     % Calculate current frame F / Fneu: lam should be normalized to sum=1,
     % then to get F, F=image(pixels) @ lam (its a sum)
 %     tall_currentImage = single(currentImage(sub2ind(size(currentImage), y_idx , x_idx)));
@@ -279,7 +301,7 @@ if strcmp(mode, 'BMI')
     % TA_CF_lam = tall_currentImage .* baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
 %     TA_CF_lam = tall_currentImage .* lam_vals .* idx_safe;
     TA_CF_lam = tall_currentImage .* lam_vals;
-    TA_CF_lam(idx_safe) = 0;
+%     TA_CF_lam(idx_safe) = 0;
     TA_CF_lam_reshape = reshape(TA_CF_lam , baselineStuff.ROIs.cell_size_max , numCells);
     
     % Calculate Fneu: 'lam' is specified by s2p as just the pixels because
@@ -289,13 +311,13 @@ if strcmp(mode, 'BMI')
     tall_currentImage_Fneu = (currentImage_gpu(sub2ind(size(currentImage_gpu), Fneu_y_idx , Fneu_x_idx)));
 %     TA_CF_Fneu_lam = tall_currentImage_Fneu .* Fneu_lam_vals .* Fneu_idx_safe;
     TA_CF_Fneu_lam = tall_currentImage_Fneu .* Fneu_lam_vals;
-    TA_CF_Fneu_lam(idx_safe) = 0;
+%     TA_CF_Fneu_lam(idx_safe) = 0;
     TA_CF_Fneu_lam_reshape = reshape(TA_CF_Fneu_lam , baselineStuff.ROIs.neuropil_size_max , numCells);
     
 %     % Subtract 0.7 * Fneu from F
 %     vals_neurons = ones(1,numCells);
 %     vals_neurons = nansum( TA_CF_lam_reshape , 1 );
-    vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - nansum(TA_CF_Fneu_lam_reshape, 1) * 0.7;
+    vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - nanmean(TA_CF_Fneu_lam_reshape, 1) * 0.7;
     
 %     vals_neurons = cellfun(@gather, vals_neurons, 'UniformOutput', false);
     vals_neurons = gather(vals_neurons);
@@ -303,7 +325,6 @@ if strcmp(mode, 'BMI')
 elseif strcmp(mode, 'baseline')
     vals_neurons = NaN;
 end
-% toc
 
 %% == ROLLING STATS ==
 cursor_brain_raw = NaN;
@@ -351,6 +372,7 @@ if CE_experimentRunning
     elseif strcmp(mode, 'baseline')
         cursor_brain = NaN;
     end
+    
 %% Check for overlap of ROIs and image (VERY SLOW)
 % % % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
 % % % size(y_tmp)
@@ -556,7 +578,7 @@ if CE_experimentRunning
                 clampedDelta = sign(delta) * min(abs(delta), max_z_delta);
                 disp(['moving fast Z by one step: ', num2str(clampedDelta)]) %num2str(delta)])
 %                 currentPosition = moveFastZ(source, [], clampedDelta, [], [20,380]);
-                delta_moved = clampedDelta;
+                delta_moved = gather(clampedDelta);
                 counter_last_z_correction = counter_frameNum;
             end
         end
@@ -591,6 +613,7 @@ end
 % save([directory , '\logger.mat'], 'logger')
 % saveParams(directory)
 % disp(['Logger & Params Saved: frameCounter = ' num2str(counter_frameNum)]);
+
 %% Plotting
 
 % if CE_experimentRunning
@@ -715,12 +738,13 @@ end
 
 if counter_frameNum == last_frameNum
     logger_output = logger;
+    loggerNames_output = loggerNames;
     logger_valsROIs_output = logger_valsROIs;
 else
     logger_output = [];
+    loggerNames_output = [];
     logger_valsROIs_output = [];
 end
-% toc
 
 %% FUNCTIONS
     function updateLoggerTrials_START % calls at beginning of a trial
