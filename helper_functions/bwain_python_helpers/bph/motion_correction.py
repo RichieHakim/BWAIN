@@ -194,7 +194,7 @@ class Shifter_rigid():
                  length ims_moving.shape[0] (n_ims).
         """
         idx_template = [idx_template] if isinstance(idx_template, int) else idx_template
-        assert isinstance(idx_template, list)
+        assert isinstance(idx_template, (list, np.ndarray, torch.Tensor))
         assert all([isinstance(idx, int) for idx in idx_template])
         
         if not isinstance(ims_moving, (torch.Tensor, np.ndarray)):
@@ -265,9 +265,12 @@ def _phase_correlation_helper(
         use_mask (bool):
             Whether or not to do frequency filtering at all.
     """
-    im_moving = im_moving[None,:,:] if im_moving.ndim == 2 else im_moving
+    im_moving    = im_moving[None,:,:]    if im_moving.ndim == 2    else im_moving
     fft_template = fft_template[None,:,:] if fft_template.ndim == 2 else fft_template
-    assert (im_moving.shape[0] == fft_template.shape[0]) or (fft_template.shape[0] == 1), f"ERROR: Either of the following must be True: im_moving.shape[0] ({im_moving.shape[0]}) == fft_template.shape[0] ({fft_template.shape[0]}), OR fft_template.shape[0] == 1"
+
+    assert (im_moving.shape[0] == fft_template.shape[0]) or (fft_template.shape[0] == 1) or (im_moving.shape[0] == 1), f"\
+ERROR: Either of the following must be True: im_moving.shape[0] ({im_moving.shape[0]}) == fft_template.shape[0] ({fft_template.shape[0]}),  \
+OR  fft_template.shape[0] == 1  OR  im_moving.shape[0] == 1"
     dims = (-2,-1)
     
     fft_moving = torch.fft.fft2(im_moving, dim=dims)

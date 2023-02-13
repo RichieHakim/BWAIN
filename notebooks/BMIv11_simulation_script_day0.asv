@@ -153,7 +153,7 @@ cellNumsToUse =     baselineStuff.cellNumsToUse;
 % F_double = double(Fall.F);
 
 num_frames = size(movie_all, 3);
-num_frames = 1000;
+num_frames = 20000;
 % num_frames = size(F_double, 2);
 
 threshold_reward = 1.7;
@@ -217,13 +217,9 @@ figure;
 % plot(weights_day0.regression_output.regression_goalSignal-0.55)
 plot(logger.decoder(1:num_frames,1))
 %%
-figure; hold on
+figure;
 % plot(logger.motionCorrection(:,1:3))
 plot(logger.motionCorrection(:,6:10))
-
-% figure;
-% plot(movmean(logger.motionCorrection(:,3), 11))
-
 %% save
 save_dir =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230125\analysis_data';
 save([save_dir , '\' ,'numRewardsAcquired_PC3'] , 'numRewardsAcquired');
