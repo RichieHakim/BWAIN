@@ -153,7 +153,7 @@ cellNumsToUse =     baselineStuff.cellNumsToUse;
 % F_double = double(Fall.F);
 
 num_frames = size(movie_all, 3);
-num_frames = 1000;
+num_frames = 100000;
 % num_frames = size(F_double, 2);
 
 threshold_reward = 1.7;
