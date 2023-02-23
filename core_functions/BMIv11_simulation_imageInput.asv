@@ -74,11 +74,8 @@ if frameNum == 1
     params.trial.duration_buildingUpStats    = round(params.timing.frameRate * 60 * 1);
 
     % SETTINGS: Rolling stats
-    params.dFoF.duration_rolling = round(params.timing.frameRate * 60 * 15);
-    params.dFoF.interval_update  = 10;
-    params.dFoF.device           = 'cuda';
-    params.dFoF.ptile            = 25;
-    params.dFoF.additive_offset  = 300;
+    params.rollingStats.duration_rolling = round(params.timing.frameRate * 60 * 15);
+    params.rollingStats.interval_update  = 10;
 end
 
 %% INITIALIZE EXPERIMENT
@@ -160,7 +157,7 @@ if frameNum == 1 && strcmp(params.mode, 'BMI')
         rois.numCells = 1;
     end
     roll_ptile = py.rp.rolling_percentile.Rolling_percentile_online(...
-        int64(params.dFoF.duration_rolling / params.dFoF.interval_update), int64(rois.numCells), 20, 'cuda');
+        int64(params.rollingStats.duration_rolling / params.rollingStats.interval_update), int64(rois.numCells), 20, 'cuda');
 end
 
 
@@ -248,14 +245,14 @@ if strcmp(params.mode, 'BMI')
     TA_CF_Fneu_lam_reshape = reshape(TA_CF_Fneu_lam , baselineStuff.ROIs.neuropil_size_max , rois.numCells);
     
 %     % Subtract 0.7 * Fneu from F
-%     data.ROIs.vals_neurons = ones(1,numCells);
-%     data.ROIs.vals_neurons = nansum( TA_CF_lam_reshape , 1 );
-    data.ROIs.vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - nanmean(TA_CF_Fneu_lam_reshape, 1) * 0.7;
+%     data.vals_neurons = ones(1,numCells);
+%     data.vals_neurons = nansum( TA_CF_lam_reshape , 1 );
+    data.vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - nanmean(TA_CF_Fneu_lam_reshape, 1) * 0.7;
     
-    data.ROIs.vals_neurons = gather(data.ROIs.vals_neurons);
+    data.vals_neurons = gather(data.vals_neurons);
 
 elseif strcmp(params.mode, 'baseline')
-    data.ROIs.vals_neurons = NaN;
+    data.vals_neurons = NaN;
 end
 
 %% == ROLLING STATS ==
@@ -265,13 +262,13 @@ if sm.CE_experimentRunning
     if strcmp(params.mode, 'BMI')
 %         next_idx = mod(data.ROIs.counter_runningVals-1 , params.rollingStats.duration_rolling)+1;
 %         vals_old = data.ROIs.runningVals(next_idx , :);
-%         data.ROIs.runningVals(next_idx,:) = data.ROIs.vals_neurons;
+%         data.ROIs.runningVals(next_idx,:) = data.vals_neurons;
 %         % 20230126 Now, frameNum follows ScanImage Frames Done
 % %             [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(frameNum , data.ROIs.runningVals(next_idx,:) , vals_old);
 %         [rolling_var_obj_cells , F_mean , F_var] = rolling_var_obj_cells.step(data.ROIs.runningVals(next_idx,:) , vals_old);
 %         data.ROIs.counter_runningVals = data.ROIs.counter_runningVals+1;
 %         if frameNum == 1
-%             F_mean = data.ROIs.vals_neurons;
+%             F_mean = data.vals_neurons;
 %             F_var = ones(size(F_mean));
 %         end
 % 
@@ -280,34 +277,31 @@ if sm.CE_experimentRunning
 %         %     F_std = ones(size(vals_smooth));
 %         F_std(F_std < 0.01) = inf;
 %         %     F_mean = nanmean(data.ROIs.runningVals , 1);
-%         F_zscore = single((data.ROIs.vals_neurons-F_mean)./F_std);
+%         F_zscore = single((data.vals_neurons-F_mean)./F_std);
 %         F_zscore(isnan(F_zscore)) = 0;
 %         data.ROIs.cursor_brain_raw = F_zscore * baselineStuff.ROIs.cellWeightings';
 
         
-        data.ROIs.vals_neurons_offset = data.ROIs.vals_neurons + params.dFoF.additive_offset;
-        if (mod(frameNum, params.dFoF.interval_update) == 0) || frameNum < 3
-            data.ROIs.F_baseline = single(roll_ptile.step(py.numpy.array(data.ROIs.vals_neurons_offset)).cpu().numpy());
-        end
-        data.ROIs.dFoF = (data.ROIs.vals_neurons_offset - data.ROIs.F_baseline) ./ data.ROIs.F_baseline;
+        if frameNum < params.rollingStats.duration_rolling
+        data.ROIs.F_baseline = single(roll_ptile.step(py.numpy.array(data.vals_neurons)).cpu().numpy());
+        data.ROIs.dFoF = (data.vals_neurons - data.ROIs.F_baseline) ./ data.ROIs.F_baseline;
         data.ROIs.cursor_brain_raw = data.ROIs.dFoF * baselineStuff.ROIs.cellWeightings';
-        data.ROIs.cursor_brain = data.ROIs.cursor_brain_raw;
         
         logger.decoder(frameNum,2) = data.ROIs.cursor_brain_raw;
 
-%         next_idx = mod(data.ROIs.counter_runningCursor-1 , params.rollingStats.duration_rolling)+1;
-%         vals_old = data.ROIs.running_cursor_raw(next_idx);
-%         data.ROIs.running_cursor_raw(next_idx) = data.ROIs.cursor_brain_raw;
-% %         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(frameNum , data.ROIs.running_cursor_raw(next_idx) , vals_old);
-%         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(data.ROIs.running_cursor_raw(next_idx) , vals_old);
-%         data.ROIs.counter_runningCursor = data.ROIs.counter_runningCursor+1;
-% 
-%         if frameNum >= params.cursor.win_smooth_cursor
-%     %         data.ROIs.cursor_brain = mean(logger.decoder(frameNum-(params.cursor.win_smooth_cursor-1):frameNum,2));
-%             data.ROIs.cursor_brain = nanmean((logger.decoder(frameNum-(params.cursor.win_smooth_cursor-1):frameNum,2)-cursor_mean)./sqrt(cursor_var));
-%         else
-%             data.ROIs.cursor_brain = data.ROIs.cursor_brain_raw;
-%         end
+        next_idx = mod(data.ROIs.counter_runningCursor-1 , params.rollingStats.duration_rolling)+1;
+        vals_old = data.ROIs.running_cursor_raw(next_idx);
+        data.ROIs.running_cursor_raw(next_idx) = data.ROIs.cursor_brain_raw;
+%         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(frameNum , data.ROIs.running_cursor_raw(next_idx) , vals_old);
+        [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(data.ROIs.running_cursor_raw(next_idx) , vals_old);
+        data.ROIs.counter_runningCursor = data.ROIs.counter_runningCursor+1;
+
+        if frameNum >= params.cursor.win_smooth_cursor
+    %         data.ROIs.cursor_brain = mean(logger.decoder(frameNum-(params.cursor.win_smooth_cursor-1):frameNum,2));
+            data.ROIs.cursor_brain = nanmean((logger.decoder(frameNum-(params.cursor.win_smooth_cursor-1):frameNum,2)-cursor_mean)./sqrt(cursor_var));
+        else
+            data.ROIs.cursor_brain = data.ROIs.cursor_brain_raw;
+        end
     elseif strcmp(mode, 'baseline')
         data.ROIs.cursor_brain = NaN;
     end
@@ -565,8 +559,8 @@ end
 %% Plotting
 
 % if frameNum>1
-% %     plotUpdatedOutput(data.ROIs.vals_neurons(:,1:10) + [1:10]*500, params.timing.duration_plotting, params.timing.frameRate, 'neurons', 1, 1),
-%     plotUpdatedOutput(data.ROIs.dFoF(:,1:10) + [1:10]*2, params.timing.duration_plotting, params.timing.frameRate, 'neurons', 1, 1),
+% %     plotUpdatedOutput(data.vals_neurons(:,1:10) + [1:10]*500, params.timing.duration_plotting, params.timing.frameRate, 'neurons', 1, 1),
+%     plotUpdatedOutput(data.ROIs.dFoF(:,1:10) + [1:10]*5, params.timing.duration_plotting, params.timing.frameRate, 'neurons', 1, 1),
 %     
 %     plotUpdatedOutput2([sm.CE_waitForBaseline*0.1, sm.CE_trial*0.2,...
 %         sm.CE_rewardDelivery*0.3, sm.CE_timeout*0.4, sm.CE_buildingUpStats*0.5, sm.fakeFeedback_inUse*0.6],...
@@ -595,7 +589,7 @@ end
 
 %% DATA LOGGING
 if ~isnan(frameNum)
-    logger_valsROIs(frameNum,:) = data.ROIs.vals_neurons; %already done above
+    logger_valsROIs(frameNum,:) = data.vals_neurons; %already done above
     
     logger.timeSeries(frameNum,1) = frameNum;
     logger.timeSeries(frameNum,2) = sm.CS_quiescence;
@@ -803,13 +797,13 @@ end
         logger.trials = NaN(size(trialStuff.condTrials,1),  length(loggerNames.trials));
 
         logger_valsROIs = nan(params.timing.duration_session , rois.numCells);
-%         data.ROIs.runningVals = nan(params.rollingStats.duration_rolling , rois.numCells);
-%         data.ROIs.running_cursor_raw = nan(params.rollingStats.duration_rolling , 1);
+        data.ROIs.runningVals = nan(params.rollingStats.duration_rolling , rois.numCells);
+        data.ROIs.running_cursor_raw = nan(params.rollingStats.duration_rolling , 1);
         
-%         rolling_var_obj_cells = rolling_var_and_mean();
-%         rolling_var_obj_cells = rolling_var_obj_cells.set_key_properties(size(data.ROIs.runningVals) , params.rollingStats.duration_rolling);
-%         rolling_var_obj_cursor = rolling_var_and_mean();
-%         rolling_var_obj_cursor = rolling_var_obj_cursor.set_key_properties([1,1] , params.rollingStats.duration_rolling);
+        rolling_var_obj_cells = rolling_var_and_mean();
+        rolling_var_obj_cells = rolling_var_obj_cells.set_key_properties(size(data.ROIs.runningVals) , params.rollingStats.duration_rolling);
+        rolling_var_obj_cursor = rolling_var_and_mean();
+        rolling_var_obj_cursor = rolling_var_obj_cursor.set_key_properties([1,1] , params.rollingStats.duration_rolling);
         
         rolling_z_mean_obj = rolling_var_and_mean();
         rolling_z_mean_obj = rolling_z_mean_obj.set_key_properties(size(permute(data.MC.im_buffer_rolling_z, [3,1,2])), params.MC.numFrames_avgWin_zCorr);

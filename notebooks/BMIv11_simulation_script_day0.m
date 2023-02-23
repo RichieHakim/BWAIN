@@ -1,7 +1,7 @@
 % Run simulation
 
 % import Fall.mat file
-dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analysis_data\suite2p\plane0';
 fileName_Fall = 'Fall.mat';
 
 path_Fall = [dir_Fall , '\' , fileName_Fall];
@@ -10,9 +10,10 @@ Fall = load(path_Fall);
 %%
 % Import weights computed from Day 0
 
-dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data';
+dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analysis_data';
 % fileName_weightsDay0 = 'weights_day0.mat';
 % 
+
 % path_weightsDay0 = [dir_analysis_day0 , '\' , fileName_weightsDay0];
 % weights_day0 = load(path_weightsDay0);
 % 
@@ -22,7 +23,7 @@ dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analy
 %% Import trialStuff for today's experiment
 fileName_trialStuff = 'trialStuff.mat';
 
-dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data';
+dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analysis_data';
 path_trialStuff = [dir_analysis_dayN , '\' , fileName_trialStuff];
 load(path_trialStuff);
 
@@ -55,11 +56,12 @@ stack = stack_warped;
 
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\scanimage_data\exp';
+directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\scanimage_data\exp';
 fileName_movie = 'exp';
 % fileName_movie = 'baseline';
 
-frames_totalExpected = 108000;
+% frames_totalExpected = 108000;
+frames_totalExpected = 10000;
 frames_perFile = 1000;
 
 ds_factor = 5; % downsampling
@@ -148,12 +150,13 @@ end
 
 %%
 cellNumsToUse =     baselineStuff.cellNumsToUse;
+
 %% Simulation (new)
 
 % F_double = double(Fall.F);
 
 num_frames = size(movie_all, 3);
-num_frames = 100000;
+num_frames = 10000;
 % num_frames = size(F_double, 2);
 
 threshold_reward = 1.7;
