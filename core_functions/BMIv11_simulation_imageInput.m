@@ -77,8 +77,8 @@ if frameNum == 1
     params.dFoF.duration_rolling = round(params.timing.frameRate * 60 * 15);
     params.dFoF.interval_update  = 10;
     params.dFoF.device           = 'cuda';
-    params.dFoF.ptile            = 25;
-    params.dFoF.additive_offset  = 300;
+    params.dFoF.ptile            = 10;
+    params.dFoF.additive_offset  = 0;
 end
 
 %% INITIALIZE EXPERIMENT
