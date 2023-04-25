@@ -284,6 +284,53 @@ def function_call(func_str, args=[], kwargs={}):
 
     return func(*args, **kwargs)
 
+def SI_stack_to_BWAIN_stack(
+    stack_in, 
+    num_frames_per_slice=60, 
+    num_slices=25, 
+    num_volumes=10, 
+    step_size_um=0.8, 
+    frames_to_discard_per_slice=30, 
+    sparse_step_size_um=4
+):
+    """
+    Converts a dense stack of images into a sparse stack of images.
+    RH 2023
+
+    Args:
+        stack_in (np.ndarray):
+            Input stack of images.
+        num_frames_per_slice (int):
+            Number of frames per slice.
+            From SI z-stack params.
+        num_slices (int):
+            Number of slices.
+            From SI z-stack params.
+        num_volumes (int):
+            Number of volumes.
+            From SI z-stack params.
+        step_size_um (float):
+            Step size in microns.
+            From SI z-stack params.
+        frames_to_discard_per_slice (int):
+            Number of frames to discard per slice.
+        sparse_step_size_um (float):
+            Desired step size in microns for the sparse stack.
+    """
+    range_slices = num_slices * step_size_um
+    range_idx_half = int((range_slices / 2) // sparse_step_size_um)
+    step_numIdx = int(sparse_step_size_um // step_size_um)
+    idx_center = int(num_slices // 2)
+    idx_slices = [idx_center + n for n in np.arange(-range_idx_half*step_numIdx, range_idx_half*step_numIdx + 1, step_numIdx, dtype=np.int64)]
+    assert (min(idx_slices) >= 0) and (max(idx_slices) <= num_slices), f"RH ERROR: The range of slice indices expected is greater than the number of slices available: {idx_slices}"
+    positions_idx = [idx*step_size_um for idx in idx_slices]
+    
+    slices_rs = np.reshape(stack_in, (num_frames_per_slice, num_slices, num_volumes, stack_in.shape[1], stack_in.shape[2]), order='F');
+    slices_rs = slices_rs[frames_to_discard_per_slice:,:,:,:,:];
+    slices_rs = np.mean(slices_rs, axis=(0, 2))
+
+    stack_out = slices_rs[idx_slices]
+    return stack_out
 
 ###############################################################################################################
 ############################################ FROM SKIMAGE #####################################################
