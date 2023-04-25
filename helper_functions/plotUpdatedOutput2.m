@@ -39,6 +39,10 @@ history(mod(historyPointer:(historyPointer + deadFrames), length_history) + 1,:)
 if mod(historyPointer,refresh_period) ==0
     
     xaxis = (1:length_history)/xAxisScaleFactor;
+%         20230316 Add YAxis labels
+    set(hAx,'YLim', [0 0.6], 'YTick', 0.1:0.1:0.6, 'YTickLabel', ...
+        {'Quiescence','Trial','Reward','Timeout','BuildingUp','FakeCursor'}...
+        )
     for ii = 1:numel(outputVals)
         set(hPlot(ii), 'XData', xaxis , 'YData', history(:,ii))
     end

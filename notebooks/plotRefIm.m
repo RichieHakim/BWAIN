@@ -1,6 +1,7 @@
 %% Plot image with same shape as the channel 1 iamge
-% stack = load('D:\RH_local\data\BMI_cage_g2F\mouse_g2FB\20221112\analysis_data\stack.mat');
-stack = load('D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\stack_sparse.mat');
+stack = load('D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\stack_sparse.mat');
+% stack = load('D:\RH_local\data\cage_0322\mouse_0322R\20230424\analysis_data\stack_sparse.mat');
+
 channel1_image = findall(groot,'Type','Figure','Name','Channel 1');
 f = figure;
 h = axes;

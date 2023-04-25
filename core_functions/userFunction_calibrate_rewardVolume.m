@@ -29,7 +29,7 @@ range_cursor = [-threshold_value threshold_value];
 range_freqOutput = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
 voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
 
-reward_duration = 52; % in ms
+reward_duration = 26; % in ms
 reward_delay = 0; % in ms
 
 %% Trial Structure settings & Rolling Stats settings

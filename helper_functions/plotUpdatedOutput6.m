@@ -40,6 +40,7 @@ if mod(historyPointer,refresh_period) ==0
 
 xaxis = (1:length_history)/xAxisScaleFactor;
     for ii = 1:numel(outputVals)
+%         disp(ii)
         set(hPlot(ii), 'XData', xaxis , 'YData', history(:,ii))
     end
 end

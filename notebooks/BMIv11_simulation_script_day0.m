@@ -1,7 +1,7 @@
 % Run simulation
 
 % import Fall.mat file
-dir_Fall = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analysis_data\suite2p\plane0';
+dir_Fall = 'D:\RH_local\data\cage_0315\mouse_0315N\20230404\analysis_data\suite2p_o2\plane0';
 fileName_Fall = 'Fall.mat';
 
 path_Fall = [dir_Fall , '\' , fileName_Fall];
@@ -10,7 +10,11 @@ Fall = load(path_Fall);
 %%
 % Import weights computed from Day 0
 
-dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analysis_data';
+dir_analysis_day0 = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\simulation';
+% dir_analysis_day0 = 'D:\RH_local\data\cage_0315\mouse_0315N\20230404\analysis_data';
+
+
+
 % fileName_weightsDay0 = 'weights_day0.mat';
 % 
 
@@ -23,17 +27,18 @@ dir_analysis_day0 = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analy
 %% Import trialStuff for today's experiment
 fileName_trialStuff = 'trialStuff.mat';
 
-dir_analysis_dayN =  'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\analysis_data';
+dir_analysis_dayN =  'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\simulation';
+% dir_analysis_dayN =  'D:\RH_local\data\cage_0315\mouse_0315N\20230411\analysis_data';
 path_trialStuff = [dir_analysis_dayN , '\' , fileName_trialStuff];
 load(path_trialStuff);
 
 %% Import baselineStuff from Day 0 or N 
 % fileName_baselineStuff = 'baselineStuff_day0.mat';
-fileName_baselineStuff = 'baselineStuff_test.mat';
+% fileName_baselineStuff = 'baselineStuff_test.mat';
+fileName_baselineStuff = 'baselineStuff.mat';
 
-
-path_baselineStuff = [dir_analysis_day0 , '\' , fileName_baselineStuff];
-% path_baselineStuff = [dir_analysis_dayN , '\' , 'baselineStuff.mat'];
+% path_baselineStuff = [dir_analysis_day0 , '\' , fileName_baselineStuff];
+path_baselineStuff = [dir_analysis_dayN , '\' , 'baselineStuff.mat'];
 load(path_baselineStuff);
 
 % fileName_baselineStuff = 'baselineStuff.mat';
@@ -43,12 +48,15 @@ load(path_baselineStuff);
 % load(path_baselineStuff);
 
 %% Import zstack if using image based simulation
+% fileName_stack = 'stack_sparse.mat';
 fileName_stack = 'stack_warped.mat';
 
 path_stack = [dir_analysis_day0 , '\' , fileName_stack];
-load(path_stack);
+% path_stack = ['D:\RH_local\data\cage_0315\mouse_0315N\20230404\analysis_data' , '\' , fileName_stack];
+tmp = load(path_stack);
+names = fieldnames(tmp);
 
-stack = stack_warped;
+stack = getfield(tmp, names{1});
 
 %% do the damn thing
 % I should probably check that the F values are the same if I do the
@@ -56,12 +64,13 @@ stack = stack_warped;
 
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230131\scanimage_data\exp';
+directory_movie = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\scanimage_data\exp';
 fileName_movie = 'exp';
 % fileName_movie = 'baseline';
 
 % frames_totalExpected = 108000;
-frames_totalExpected = 10000;
+frames_totalExpected = 9000;
+% frames_totalExpected = 10000;
 frames_perFile = 1000;
 
 ds_factor = 5; % downsampling
@@ -151,18 +160,35 @@ end
 %%
 cellNumsToUse =     baselineStuff.cellNumsToUse;
 
-%% Simulation (new)
+%% Simulation (new) - parameter setup
 
 % F_double = double(Fall.F);
 
 num_frames = size(movie_all, 3);
-num_frames = 10000;
+% num_frames = 10000;
 % num_frames = size(F_double, 2);
 
-threshold_reward = 1.7;
-threshold_quiescence = 0;
-duration_quiescenceHold = 0.5; % in second
-% duration_quiescenceHold = 0;
+%% VERY IMPORTANT - SIMULATION PARAMETERS
+% 20230312 angle decoder
+simulation_args = struct();
+
+simulation_args.threshold_reward = 1.5; % Reward if cursor_brain > threshold_reward
+simulation_args.thresh_quiescence_cursorDecoder = 0.15; % Quiescence if CS(cursor) <= threshold_quiescence
+simulation_args.thresh_quiescence_cursorMag = 0; % Quiescence if CS(avgVector) >= threshold_quiescence_avgVec
+simulation_args.factor_to_use = 3;
+simulation_args.angle_power = 2;
+
+%     % 20230327 Block Structure Simulation
+simulation_args.blocks.block_trial        = true;
+simulation_args.blocks.block_timecap      = 30*60*60; % In seconds/minutes. Shift decoder factor after THIS much time spent
+simulation_args.blocks.block_rewardcap     = 250; % ADJUSTABLE: Shift decoder factor after THIS number of trials
+% simulation_args.block.current_block_num   = 0; % 0-INDEXED!!!
+% simulation_args.block.block_start_frame   =  1800;
+% simulation_args.block.block_start_trial   = 1;
+% simulation_args.block.num_of_arm_bandit   = 2; % Just a placeholder. Will be defined again in Startsession function.
+
+%% Start Simulation!
+% baselineStuff.factor_space = rand(7, baselineStuff.ROIs.num_cells)';
 
 t = NaN(1,num_frames);
 for ii = 1:num_frames
@@ -171,10 +197,12 @@ for ii = 1:num_frames
 %         ii
     if ii<num_frames
 %         BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
-        BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+%         BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+        BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , simulation_args, num_frames);
     else
 %         [logger , logger_valsROIs2 , numRewardsAcquired] = BMIv11_simulation(F_double(cellNumsToUse,ii)' , ii , baselineStuff , trialStuff, num_frames , threshold_reward , threshold_quiescence, duration_quiescenceHold, num_frames);
-        [logger , loggerNames , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+%         [logger , loggerNames , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , threshold_reward , threshold_quiescence, num_frames);
+        [logger , loggerNames , logger_valsROIs,  numRewardsAcquired] = BMIv11_simulation_imageInput(movie_all(:,:,ii) , ii , baselineStuff, trialStuff, stack, num_frames , simulation_args, num_frames);
     end
         t(ii) = toc;
     if mod(ii,1000)==0 || ii==1 || ii==2
@@ -209,8 +237,16 @@ reward_times = find(diff(logger.timeSeries((1:num_frames),13))>0.5);
 figure; plot(logger.decoder(1:num_frames,4).*logger.timeSeries(1:num_frames,5)/10000)
 hold on; plot(logger.decoder(1:num_frames,3))
 hold on; plot(logger.timeSeries(1:num_frames,31:32))
-hold on; plot([1,length(logger.timeSeries(1:num_frames,1))] , [threshold_reward , threshold_reward])
+hold on; plot([1,length(logger.timeSeries(1:num_frames,1))] , [simulation_args.threshold_reward , simulation_args.threshold_reward])
 hold on; plot(reward_times, ones(size(reward_times))*0.2 , '.' , 'MarkerSize' , 20)
+
+%%
+figure;
+hold on
+plot(logger.decoder(1:num_frames,1))
+plot(logger.decoder(1:num_frames,6))
+plot(logger.decoder(1:num_frames,7))
+legend('cursor', 'decoder angle', 'avgVec angle');
 
 %%
 % figure; plot((1:num_frames) / 30 , logger.decoder.outputs(1:num_frames,1))

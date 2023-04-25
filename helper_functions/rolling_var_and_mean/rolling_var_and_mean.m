@@ -188,7 +188,14 @@ classdef rolling_var_and_mean
                 mean_new = obj.running_mean(idx_new, vals_new, mean_old);
             else
                 % CODE MEAT
+%                 disp('ho')
                 mean_new = mean_old + ((vals_new - vals_old) ./ double(win_size));
+%                 try
+%                     mean_new = mean_old + ((vals_new - vals_old) ./ double(win_size));
+%                 catch
+%                     filename = 'D:\RH_local\data\rig_test\031523_stream_imagetype_test\rolling_error.mat';
+%                     save(filename, 'mean_old', 'vals_new', 'vals_old', 'win_size')
+%                 end
             end
         end
         

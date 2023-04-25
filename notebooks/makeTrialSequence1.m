@@ -10,8 +10,12 @@ numConditions = length(condition_names);
 
 %% Make fake decoder data for each trial
 
+% Scale to get a set percentage of threshold hits
+threshold = 2.6;
+goal_threshAchieved = 0.4; % goal of what fraction of fake cursor trials reach threshold
+
 % Import a logger to steal decoder output for fake feedback decoder
-path_fakeData = 'D:\RH_local\data\BMI_cage_1511_3\mouse_B\20221028\analysis_data\logger.mat';
+path_fakeData = 'D:\RH_local\fake_data_for_trialStuff\logger.mat';
 load(path_fakeData)
 
 sample_rate = 30; % in Hz, rough imaging speed
@@ -20,10 +24,6 @@ maxTrialDuration = 20 * Fs; % Make this the actual trial duration
 
 fakeDecoderData = logger.decoder(:,1);
 fakeDecoderData = fakeDecoderData(isnan(fakeDecoderData)==0);
-
-% Scale to get a set percentage of threshold hits
-threshold = 1.7;
-goal_threshAchieved = 0.4; % goal of what fraction of fake cursor trials reach threshold
 %% Reshuffling optimization
 thresh_check_avg = inf;
 thresh_check_avg_first10 = inf;
@@ -293,7 +293,8 @@ trialStuff.condProbs = 'N/A';
 trialStuff.homogeneousBlockSize = 'N/A';
 
 %%
-dir = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data';
+dir = 'D:\RH_local\data\cage_0315\mouse_0315N\20230425\analysis_data';
+% dir = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
 
 

@@ -1,14 +1,26 @@
-path_stack = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\scanimage_data\zstack\zstack_00001_00001.tif';
-path_save = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\stack_dense.mat';
+path_stack = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\scanimage_data\zstack\zstack_960_00001_00001.tif';
+path_save = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data\stack_960nm_dense.mat';
+path_save_sparse = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data\stack_sparse.mat';
 
 num_frames_per_slice = 60;
-num_slices = 25;
+% num_slices = 25;
+num_slices = 41; % % 03262023 Increase stack range
 num_volumes = 10;
-step_size_um = 0.75;
+step_size_um = 0.8;
 centered = 1;
 % FAST
 % STEP
 % # Frames/File 100000
+
+% % For zstack_bulk:
+% num_frames_per_slice = 60;
+% num_slices = 101; % 200 um stack
+% num_volumes = 3;
+% step_size_um = 2;
+% centered = 1;
+% % FAST
+% % STEP
+% % # Frames/File 100000
 
 frames_to_discard_per_slice = 30; % discards this many frames from beginning due to jitter from piezo
 
@@ -63,7 +75,6 @@ stack_sparse.params.step_size_um = step_size_um;
 stack_sparse.params.centered = centered;
 
 %%
-path_save_sparse = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230111\analysis_data\stack_sparse.mat';
 save(path_save_sparse, 'stack_sparse')
 %%
 function image = maskImage(image, border_outer, border_inner)

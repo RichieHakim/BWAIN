@@ -1,14 +1,19 @@
 function [logger_output , loggerNames_output , logger_valsROIs_output  , NumOfRewardsAcquired] =...
-    BMIv11_simulation_imageInput(currentImage, frameNum , baselineStuff_in , trialStuff_in, zstack , last_frameNum , threshold_reward , threshold_quiescence, num_frames_total)
+    BMIv11_simulation_imageInput(currentImage, frameNum , baselineStuff_in , trialStuff_in, zstack , last_frameNum , simulation_args, num_frames_total)
 %% Variable stuff
 tic
-global logger loggerNames logger_valsROIs...
+global logger loggerNames logger_valsROIs logger_dFoFROIs logger_dFoFbaseROIs...
     pe shifter roll_ptile rolling_var_obj_cells rolling_var_obj_cursor rolling_z_mean_obj...
     params data rois sm...
-
-persistent baselineStuff trialStuff 
+    baselineStuff trialStuff...
+    
+% persistent  
 
 %% IMPORT DATA
+% For simulation, frameNum shouldn't be a global variable 03/15/2023
+
+% frameNum = source.hSI.hStackManager.framesDone;
+
 if frameNum == 1
     params = struct();
     data = struct();
@@ -17,9 +22,11 @@ if frameNum == 1
 end
 
 frameNum = frameNum;
-% frameNum = source.hSI.hStackManager.framesDone;
+% disp(frameNum)
+
 % data.currentImage = source.hSI.hDisplay.lastFrame{1};
-data.currentImage = currentImage;
+% currentImage = int32(currentImage);
+data.currentImage = int32(currentImage); %% 03/15/2023 ScanImage online image format is...sometimes int16, sometimes int32.
 data.currentImage_gpu = gpuArray(data.currentImage);
 data.hash_image = simple_image_hash(data.currentImage);  %% slower on gpu
 % hash_image = gather(simple_image_hash(data.currentImage_gpu));
@@ -29,7 +36,8 @@ data.MC.current_position_z = 0;
 %% == USER SETTINGS ==
 if frameNum == 1
     % SETTINGS: General
-    params.directory = 'D:\RH_local\data\BMI_cage_1511_4\mouse_1511L\20230201\analysis_data';
+    params.paths.directory = 'D:\RH_local\data\BMI_cage_g8Test\mouse_g8t\20230314\analysis_data';
+    params.paths.expSettings = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\expParams.mat';  %% Set to false to not pull expSettings
 
     % SETTINGS: TIMING
     params.timing.frameRate          = 30;
@@ -38,7 +46,7 @@ if frameNum == 1
     
     % SETTINGS: Motion correction
     params.MC.numFrames_avgWin_zCorr      = 30*2;
-    params.MC.intervalFrames_zCorr        = 5; 
+    params.MC.intervalFrames_zCorr        = 5;
     params.MC.min_interval_z_correction   = 20*params.timing.frameRate;
     params.MC.max_delta_z_correction      = 0.5;
     params.MC.bandpass_freqs              = [1/64, 1/4];
@@ -46,58 +54,96 @@ if frameNum == 1
     params.MC.device                      = 'cuda';
     params.MC.frame_shape_yx              = int64([512,512]);
 
-    % SETTINGS: Cursor
-%     params.cursor.threshold_reward     = 1.7;
-%     params.cursor.threshold_quiescence = 0;
-    params.cursor.threshold_reward     = threshold_reward;
-    params.cursor.threshold_quiescence = threshold_quiescence;
-
+    % SETTINGS: Cursor: Only works for params.trial.block_trial == false    
+    params.cursor.factor_to_use = simulation_args.factor_to_use;
+    params.cursor.angle_power = simulation_args.angle_power;
+ 
+    params.cursor.threshold_reward     = simulation_args.threshold_reward;
+    params.cursor.thresh_quiescence_cursorDecoder = simulation_args.thresh_quiescence_cursorDecoder;
+    params.cursor.thresh_quiescence_cursorMag = simulation_args.thresh_quiescence_cursorMag;
+    
     params.cursor.win_smooth_cursor    = 3; % smoothing window (in frames)
     params.cursor.bounds_cursor        = [-params.cursor.threshold_reward , params.cursor.threshold_reward *1.5];
     params.cursor.range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
     params.cursor.voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
-
+    
     % SETTINGS: Mode
 %     params.mode = 'baseline';
     params.mode = 'BMI';
-
+    
     % SETTINGS: Trials
     % below in unit seconds
-    params.trial.reward_duration = 52; % 01/14/2023 in ms calibrated to 2.5 uL/reward 
+    params.trial.reward_duration = 52; % 01/14/2023 in ms calibrated to 2.5 uL/reward
+%     params.trial.reward_duration = 26; % 03/21/2023 in ms calibrated to 2.5 uL/reward, 1:1 water-diluted soymilk
     params.trial.reward_delay = 0; % in ms
+    params.trial.LED_duration = 0.2; % in s
+    params.trial.LED_ramp_duration = 0.1; % in s
     params.trial.duration_trial          = 20;
     params.trial.duration_timeout        = 4;
-    params.trial.duration_threshold      = 0.066;
+    
+%     params.trial.duration_threshold      = 0.066; % in seconds
+    params.trial.duration_threshold      = 3; % in frames
+    
     params.trial.duration_ITI            = 3;
     params.trial.duration_rewardDelivery = 1.00; % before it was .2 10/10/22: Controls how long the reward tone is
-    params.trial.duration_quiescenceHold = 0.5;  % in seconds
+    
+%     params.trial.duration_quiescenceHold = 0.5;  % in seconds
+    params.trial.duration_quiescenceHold      = 3; % in frames
+    
     params.trial.duration_buildingUpStats    = round(params.timing.frameRate * 60 * 1);
-
+    
+    %     % 20230327 Block Structure
+    params.blocks.block_trial        = simulation_args.blocks.block_trial; % If True, Trial is block-structurized by parameters below.
+    
+%     params.trial.current_block_num  = simulation_args.block.current_block_num; % 0-INDEXED!!!
+%     params.trial.block_start_frame  =  simulation_args.block.block_start_frame;
+%     params.trial.block_start_trial  = simulation_args.block.block_start_trial;
+%     params.trial.num_of_arm_bandit = simulation_args.block.num_of_arm_bandit; % Just a placeholder. Will be defined again in Startsession function.
+    
     % SETTINGS: Rolling stats
-    params.dFoF.duration_rolling = round(params.timing.frameRate * 60 * 15);
+    params.dFoF.duration_rolling = round(params.timing.frameRate * 60 * 10);
     params.dFoF.interval_update  = 10;
     params.dFoF.device           = 'cuda';
-    params.dFoF.ptile            = 10;
+    params.dFoF.ptile            = 30;
+    params.dFoF.frac_neuropil    = 0.7;
     params.dFoF.additive_offset  = 0;
+    params.dFoF.thresh_violation_F_baseline = 0;
+%     params.dFoF.thresh_violation_dFoF = 50;
+    params.dFoF.thresh_violation_dFoF = 200;
+    
+    if isscalar(params.paths.expSettings)==false
+        if isfile(params.paths.expSettings)
+            clear expSettings
+            load(params.paths.expSettings);
+            assert(exist('expSettings') > 0, 'RH ERROR: Imported file from params.paths.expSettings, but variable name is not expSettings');
+            
+            % overwrite all parameters contained within expSettings
+            params = overwrite_struct_fields(params, expSettings);
+        else
+            error('RH ERROR: params.paths.expSettings is not false, but does not point to a valid file')
+        end
+    end
 end
 
 %% INITIALIZE EXPERIMENT
 
-if frameNum == 1 && strcmp(params.mode, 'BMI')
-%     path_baselineStuff = [params.directory , '\baselineStuff.mat'];
-%     load(path_baselineStuff);
-%     disp(['LOADED baselineStuff from:  ' , path_baselineStuff])
-% 
-%     path_trialStuff = [params.directory , '\trialStuff.mat'];
+if frameNum == 1
+%     if strcmp(params.mode, 'BMI')
+%         path_baselineStuff = [params.paths.directory , '\baselineStuff.mat'];
+%         load(path_baselineStuff);
+%         disp(['LOADED baselineStuff from:  ' , path_baselineStuff])
+%     end
+%     
+%     path_trialStuff = [params.paths.directory , '\trialStuff.mat'];
 %     load(path_trialStuff);
 %     disp(['LOADED trialStuff from:  ' , path_trialStuff])
-%
-%     if strcmp(mode, 'BMI')
-%         type_stack = 'stack_warped';
-%     elseif strcmp(mode, 'baseline')
-%         type_stack = 'stack_sparse';
-%     end
-%     zstack = load([params.directory , '\', type_stack, '.mat']);
+%     
+    if strcmp(params.mode, 'BMI')
+        type_stack = 'stack_warped';
+    elseif strcmp(params.mode, 'baseline')
+        type_stack = 'stack_sparse';
+    end
+%     zstack = load([params.paths.directory , '\', type_stack, '.mat']);
     
     baselineStuff = baselineStuff_in;
     trialStuff = trialStuff_in;
@@ -110,39 +156,57 @@ if frameNum == 1 && strcmp(params.mode, 'BMI')
     end
     py.importlib.import_module('bph.motion_correction');
     py.importlib.import_module('rp.rolling_percentile');
-
-    im = baselineStuff.MC.meanIm;
-    s_y = floor((size(im,1)-params.MC.frame_shape_yx(1))/2) + 1;
-    s_x = floor((size(im,2)-params.MC.frame_shape_yx(2))/2) + 1;
+    
+    s_y = floor((size(data.currentImage,1)-params.MC.frame_shape_yx(1))/2) + 1;
+    s_x = floor((size(data.currentImage,2)-params.MC.frame_shape_yx(2))/2) + 1;
     data.MC.idx_im_MC_crop_y = s_y:s_y+params.MC.frame_shape_yx(1)-1;
     data.MC.idx_im_MC_crop_x = s_x:s_x+params.MC.frame_shape_yx(2)-1;
-    data.MC.im_refIm_MC_2D = gpuArray(single(im(data.MC.idx_im_MC_crop_y, data.MC.idx_im_MC_crop_x)));
 
+    
     data.im_zstack = eval(['zstack', '.stack_avg']);
     data.im_zstack = single(data.im_zstack(:, data.MC.idx_im_MC_crop_y, data.MC.idx_im_MC_crop_x));
     data.MC.stepSize_zstack = eval(['zstack','.step_size_um']);
     data.MC.n_slices_zstack = size(data.im_zstack, 1);
+%     data.im_zstack = eval(['zstack.', type_stack, '.stack_avg']);
+%     data.im_zstack = single(data.im_zstack(:, data.MC.idx_im_MC_crop_y, data.MC.idx_im_MC_crop_x));
+%     data.MC.stepSize_zstack = eval(['zstack.', type_stack, '.step_size_um']);
+%     data.MC.n_slices_zstack = size(data.im_zstack, 1);
+    
+    data.MC.idx_middle_frame = ceil(data.MC.n_slices_zstack/2);
+    if strcmp(params.mode, 'BMI')
+        im = baselineStuff.MC.meanIm;
+        data.MC.im_refIm_MC_2D = gpuArray(single(im(data.MC.idx_im_MC_crop_y, data.MC.idx_im_MC_crop_x)));
+    elseif strcmp(params.mode, 'baseline')
+        im = squeeze(data.im_zstack(data.MC.idx_middle_frame, :,:));
+        data.MC.im_refIm_MC_2D = gpuArray(single(im));
+    end
     
     % Initialize the shifter class
     shifter = py.bph.motion_correction.Shifter_rigid(params.MC.device);
     shifter.make_mask(py.tuple(params.MC.frame_shape_yx), py.tuple(params.MC.bandpass_freqs), params.MC.bandpass_orderButter);
     shifter.preprocess_template_images(gather(single(cat(1, permute(data.MC.im_refIm_MC_2D, [3,1,2]), data.im_zstack))), py.int(0));
-
-    rois.x_idx_raw = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2)));
-    rois.y_idx_raw = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3)));
-    rois.lam_vals = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4)));
-    rois.lam_vals(isnan(rois.lam_vals)) = 1;
-    rois.F_idx_nan = (1 - isnan(rois.x_idx_raw) .* rois.x_idx_raw);
-
-    rois.Fneu_x_idx_raw = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,2)));
-    rois.Fneu_y_idx_raw = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,3)));
-    rois.Fneu_lam_vals = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,4)));
-    rois.Fneu_lam_vals(isnan(rois.Fneu_lam_vals)) = 1;
-%     rois.Fneu_lam_vals = gpuArray(int16(rois.Fneu_lam_vals));
-    rois.Fneu_idx_nan = (1 - isnan(rois.Fneu_x_idx_raw) .* rois.Fneu_x_idx_raw);
-
-    data.MC.im_buffer_rolling_z = gpuArray(zeros([size(data.MC.im_refIm_MC_2D) , params.MC.numFrames_avgWin_zCorr], 'int16'));
+    
+    data.MC.im_buffer_rolling_z = gpuArray(zeros([size(data.MC.im_refIm_MC_2D) , params.MC.numFrames_avgWin_zCorr], 'int32'));
+%     data.MC.im_buffer_rolling_z = gpuArray(zeros([size(data.MC.im_refIm_MC_2D) , params.MC.numFrames_avgWin_zCorr], 'int16'));
     data.MC.counter_buffer_rolling_z = 0;
+    
+    if strcmp(params.mode, 'BMI')
+        rois.numCells = baselineStuff.ROIs.num_cells;
+        rois.x_idx_raw = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,2)));
+        rois.y_idx_raw = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,3)));
+        rois.lam_vals = gpuArray(single(baselineStuff.ROIs.spatial_footprints_tall_warped(:,4)));
+        rois.lam_vals(isnan(rois.lam_vals)) = 1;
+        rois.F_idx_nan = (1 - isnan(rois.x_idx_raw) .* rois.x_idx_raw);
+
+        rois.Fneu_x_idx_raw = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,2)));
+        rois.Fneu_y_idx_raw = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,3)));
+        rois.Fneu_lam_vals = gpuArray(single(baselineStuff.ROIs.Fneu_masks_tall_warped(:,4)));
+        rois.Fneu_lam_vals(isnan(rois.Fneu_lam_vals)) = 1;
+        %     rois.Fneu_lam_vals = gpuArray(int16(rois.Fneu_lam_vals));
+        rois.Fneu_idx_nan = (1 - isnan(rois.Fneu_x_idx_raw) .* rois.Fneu_x_idx_raw);
+    elseif strcmp(params.mode, 'baseline')
+        rois.numCells = 1;
+    end
     
     % Initialize rolling percentile class
 %     rpo = rp.rolling_percentile.Rolling_percentile_online(
@@ -153,16 +217,9 @@ if frameNum == 1 && strcmp(params.mode, 'BMI')
 %     device='cuda:0',
 %     use_jit=True,
 % )
-
-    if strcmp(params.mode, 'BMI')
-        rois.numCells = baselineStuff.ROIs.num_cells;
-    elseif strcmp(params.mode, 'baseline')
-        rois.numCells = 1;
-    end
     roll_ptile = py.rp.rolling_percentile.Rolling_percentile_online(...
         int64(params.dFoF.duration_rolling / params.dFoF.interval_update), int64(rois.numCells), 20, 'cuda');
 end
-
 
 %% == Session Starting & counting ==
 
@@ -185,10 +242,10 @@ data.MC.img_MC_2d_moving = data.currentImage_gpu(data.MC.idx_im_MC_crop_y(1):dat
 if (frameNum >= 0) && (mod(frameNum, params.MC.intervalFrames_zCorr) == 0)
     data.MC.counter_buffer_rolling_z = data.MC.counter_buffer_rolling_z + 1;
     data.MC.im_buffer_rolling_z_mean = rolling_z_mean_obj.update_mean(rolling_z_mean_obj.idx_new, data.MC.img_MC_2d_moving, data.MC.im_buffer_rolling_z(:,:,mod(data.MC.counter_buffer_rolling_z ,params.MC.numFrames_avgWin_zCorr)+1), rolling_z_mean_obj.win_size, rolling_z_mean_obj.mean_old);
-
+    
     rolling_z_mean_obj.mean_old = data.MC.im_buffer_rolling_z_mean;
     rolling_z_mean_obj.idx_new = rolling_z_mean_obj.idx_new + 1;
-
+    
     data.MC.im_buffer_rolling_z(:,:,mod(data.MC.counter_buffer_rolling_z ,params.MC.numFrames_avgWin_zCorr)+1) = data.MC.img_MC_2d_moving;
 elseif frameNum < params.MC.intervalFrames_zCorr
     data.MC.im_buffer_rolling_z_mean = data.MC.im_buffer_rolling_z(:,:,1);
@@ -196,6 +253,7 @@ end
 
 out = shifter.find_translation_shifts(gather(data.MC.img_MC_2d_moving), py.int(0));  %% 0-indexed
 shifts_yx          = single(int32(out{1}.numpy()));
+% shifts_yx          = single(int16(out{1}.numpy()));
 data.MC.yShift     = shifts_yx(1);
 data.MC.xShift     = shifts_yx(2);
 data.MC.maxCorr_2d = single(out{2}.numpy());
@@ -203,7 +261,7 @@ data.MC.maxCorr_2d = single(out{2}.numpy());
 out = shifter.find_translation_shifts(gather(data.MC.im_buffer_rolling_z_mean), py.list(int64([1:data.MC.n_slices_zstack])));  %% 0-indexed
 data.MC.maxCorr_z = single(out{2}.numpy());
 [maxVal, maxArg] = max(data.MC.maxCorr_z);
-data.MC.delta_z = (ceil(data.MC.n_slices_zstack/2)-maxArg) * data.MC.stepSize_zstack; 
+data.MC.delta_z = (data.MC.idx_middle_frame-maxArg) * data.MC.stepSize_zstack;
 
 % data.MC.xShift = 0;
 % data.MC.yShift = 0;
@@ -224,16 +282,16 @@ if strcmp(params.mode, 'BMI')
     % New extractor
     x_idx     = rois.x_idx_raw + data.MC.xShift;
     y_idx     = rois.y_idx_raw + data.MC.yShift;
-
+    
     y_idx = max(min(y_idx, single(size(data.currentImage,1))), 1);
     x_idx = max(min(x_idx, single(size(data.currentImage,2))), 1);
     
     Fneu_x_idx     =  rois.Fneu_x_idx_raw + data.MC.xShift;
     Fneu_y_idx     =  rois.Fneu_y_idx_raw + data.MC.yShift;
-
+    
     Fneu_y_idx = max(min(Fneu_y_idx, double(size(data.currentImage,1))), 1);
     Fneu_x_idx = max(min(Fneu_x_idx, double(size(data.currentImage,2))), 1);
-
+    
     % Calculate current frame F / Fneu: lam should be normalized to sum=1,
     % then to get F, F=image(pixels) @ lam (its a sum)
     tall_currentImage_F = single(data.currentImage_gpu(sub2ind(size(data.currentImage_gpu), y_idx , x_idx))) .* rois.F_idx_nan;
@@ -250,10 +308,10 @@ if strcmp(params.mode, 'BMI')
 %     % Subtract 0.7 * Fneu from F
 %     data.ROIs.vals_neurons = ones(1,numCells);
 %     data.ROIs.vals_neurons = nansum( TA_CF_lam_reshape , 1 );
-    data.ROIs.vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - nanmean(TA_CF_Fneu_lam_reshape, 1) * 0.7;
-    
+    data.ROIs.vals_neuropil = nanmean(TA_CF_Fneu_lam_reshape, 1);
+    data.ROIs.vals_neurons = nansum( TA_CF_lam_reshape , 1 ) - data.ROIs.vals_neuropil * params.dFoF.frac_neuropil;
     data.ROIs.vals_neurons = gather(data.ROIs.vals_neurons);
-
+    
 elseif strcmp(params.mode, 'baseline')
     data.ROIs.vals_neurons = NaN;
 end
@@ -263,6 +321,25 @@ data.ROIs.cursor_brain_raw = NaN;
 sm.fakeFeedback_inUse = NaN;
 if sm.CE_experimentRunning
     if strcmp(params.mode, 'BMI')
+        % 03/27/2023 block-trial preparation
+        if params.blocks.block_trial
+            if ~sm.CE_trial && ((frameNum - sm.blocks.frameNum_blockStart >= sm.blocks.block_timecap * params.timing.frameRate) || (sm.NumOfRewardsAcquired - sm.blocks.rewardNum_blockStart >= sm.blocks.block_rewardcap))
+                disp(['Starting new block.'])
+                temp_blockNum = sm.blocks.blockNum + 1;
+                sm.blocks = baselineStuff.block_sequence.blocks(temp_blockNum);
+                sm.cursor = baselineStuff.cursors(sm.blocks.cursor_to_use);
+                sm.blocks.blockNum = temp_blockNum;
+                sm.blocks.frameNum_blockStart = frameNum;
+                sm.blocks.rewardNum_blockStart = sm.NumOfRewardsAcquired;
+                disp(['Current Block: ', num2str(sm.blocks.blockNum)])
+                disp(sm.blocks)
+                disp(sm.cursor)
+            end
+        else
+            % Set to defaults
+            sm.cursor = params.cursor;
+    %         sm.blocks = params.blocks;
+        end
 %         next_idx = mod(data.ROIs.counter_runningVals-1 , params.rollingStats.duration_rolling)+1;
 %         vals_old = data.ROIs.runningVals(next_idx , :);
 %         data.ROIs.runningVals(next_idx,:) = data.ROIs.vals_neurons;
@@ -290,51 +367,72 @@ if sm.CE_experimentRunning
             data.ROIs.F_baseline = single(roll_ptile.step(py.numpy.array(data.ROIs.vals_neurons_offset)).cpu().numpy());
         end
         data.ROIs.dFoF = (data.ROIs.vals_neurons_offset - data.ROIs.F_baseline) ./ data.ROIs.F_baseline;
-        data.ROIs.cursor_brain_raw = data.ROIs.dFoF * baselineStuff.ROIs.cellWeightings';
+        %         data.ROIs.factors = (data.ROIs.dFoF / (norm(v1 , axis=0, keepdims=True))).T  @ (v2  / norm(v2 , axis=0, keepdims=True))
+        
+        % 20230313 Online Trace Quality Metric
+        data.ROIs.violations = (data.ROIs.F_baseline < params.dFoF.thresh_violation_F_baseline) | (data.ROIs.dFoF > params.dFoF.thresh_violation_dFoF);
+        data.ROIs.dFoF(data.ROIs.violations) = NaN;
+        
+        % % 20230312 angle decoder application
+        % Norm of each decoder in factor_space should be 1
+        data.ROIs.decoder_magnitudes = nansum(data.ROIs.dFoF' .* baselineStuff.factor_space);
+        data.ROIs.decoder_angles = data.ROIs.decoder_magnitudes / norm(data.ROIs.decoder_magnitudes);
+        data.ROIs.cursor_positions = (abs(data.ROIs.decoder_angles) .^ sm.cursor.angle_power) .* data.ROIs.decoder_magnitudes;
+
+        data.ROIs.cursor_brain_raw = data.ROIs.cursor_positions(sm.cursor.factor_to_use);
         data.ROIs.cursor_brain = data.ROIs.cursor_brain_raw;
         
-        logger.decoder(frameNum,2) = data.ROIs.cursor_brain_raw;
-
-%         next_idx = mod(data.ROIs.counter_runningCursor-1 , params.rollingStats.duration_rolling)+1;
-%         vals_old = data.ROIs.running_cursor_raw(next_idx);
-%         data.ROIs.running_cursor_raw(next_idx) = data.ROIs.cursor_brain_raw;
-% %         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(frameNum , data.ROIs.running_cursor_raw(next_idx) , vals_old);
-%         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(data.ROIs.running_cursor_raw(next_idx) , vals_old);
-%         data.ROIs.counter_runningCursor = data.ROIs.counter_runningCursor+1;
-% 
-%         if frameNum >= params.cursor.win_smooth_cursor
-%     %         data.ROIs.cursor_brain = mean(logger.decoder(frameNum-(params.cursor.win_smooth_cursor-1):frameNum,2));
-%             data.ROIs.cursor_brain = nanmean((logger.decoder(frameNum-(params.cursor.win_smooth_cursor-1):frameNum,2)-cursor_mean)./sqrt(cursor_var));
-%         else
-%             data.ROIs.cursor_brain = data.ROIs.cursor_brain_raw;
-%         end
-    elseif strcmp(mode, 'baseline')
+%         data.ROIs.cursor_visualize = data.ROIs.cursor_positions(params.factor_visualize);
+        
+        
+        %         data.ROIs.cursor_brain_raw = F_zscore * baselineStuff.ROIs.cellWeightings';
+        %         logger.decoder(frameNum,2) = data.ROIs.cursor_brain_raw;
+        %
+        %         next_idx = mod(data.ROIs.counter_runningCursor-1 , params.dFoF.duration_rolling)+1;
+        %         vals_old = data.ROIs.running_cursor_raw(next_idx);
+        %         data.ROIs.running_cursor_raw(next_idx) = data.ROIs.cursor_brain_raw;
+        % %         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(frameNum , data.ROIs.running_cursor_raw(next_idx) , vals_old);
+        %         [rolling_var_obj_cursor , cursor_mean , cursor_var] = rolling_var_obj_cursor.step(data.ROIs.running_cursor_raw(next_idx) , vals_old);
+        %         data.ROIs.counter_runningCursor = data.ROIs.counter_runningCursor+1;
+        %
+        %         if frameNum >= sm.cursor.win_smooth_cursor
+        %     %         data.ROIs.cursor_brain = mean(logger.decoder(frameNum-(sm.cursor.win_smooth_cursor-1):frameNum,2));
+        %             data.ROIs.cursor_brain = nanmean((logger.decoder(frameNum-(sm.cursor.win_smooth_cursor-1):frameNum,2)-cursor_mean)./sqrt(cursor_var));
+        %         else
+        %             data.ROIs.cursor_brain = data.ROIs.cursor_brain_raw;
+        %         end
+    elseif strcmp(params.mode, 'baseline')
+        data.ROIs.dFoF = NaN;
+        data.ROIs.F_baseline = NaN;
+        data.ROIs.decoder_magnitudes = NaN;
+        data.ROIs.decoder_angles = NaN;
+        data.ROIs.cursor_positions = NaN;
         data.ROIs.cursor_brain = NaN;
     end
     
-%% Check for overlap of ROIs and image (VERY SLOW)
-if 0
-    if (sm.CE_rewardDelivery && sm.counter_rewardDelivery<2) && strcmp(mode, 'BMI')
-        % % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
-        % % size(y_tmp)
-        % CI = zeros(size(currentImage,1), size(currentImage,2));
-        % CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
-
-        WI = zeros(size(currentImage,1), size(currentImage,2));
-        % size(baselineStuff.ROIs.cellWeightings)
-        WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings .* F_zscore, 230, 1);
-        % WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings, 230, 1);
-        % 
-        LI = zeros(size(currentImage,1), size(currentImage,2));
-        LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
-        % 
-        % % CWI = CI .* WI;
-        % LCWI = CI .* LI .* WI;
-        LWI = LI .* WI;
-        plotUpdatedImagesc(LWI , [-0.2,1], 'test')
+    %% Check for overlap of ROIs and image (VERY SLOW)
+    if 0
+        if (sm.CE_rewardDelivery && sm.counter_rewardDelivery<2) && strcmp(params.mode, 'BMI')
+            % % y_tmp = reshape(y_idx, baselineStuff.ROIs.cell_size_max , numCells);
+            % % size(y_tmp)
+            % CI = zeros(size(currentImage,1), size(currentImage,2));
+            % CI(sub2ind(size(currentImage), y_idx , x_idx)) = currentImage(sub2ind(size(currentImage), y_idx , x_idx));
+            
+            WI = zeros(size(currentImage,1), size(currentImage,2));
+            % size(baselineStuff.ROIs.cellWeightings)
+            WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings .* F_zscore, 230, 1);
+            % WI(sub2ind(size(currentImage), y_idx , x_idx)) = repmat(baselineStuff.ROIs.cellWeightings, 230, 1);
+            %
+            LI = zeros(size(currentImage,1), size(currentImage,2));
+            LI(sub2ind(size(currentImage), y_idx , x_idx)) = baselineStuff.ROIs.spatial_footprints_tall_warped(:,4);
+            %
+            % % CWI = CI .* WI;
+            % LCWI = CI .* LI .* WI;
+            LWI = LI .* WI;
+            plotUpdatedImagesc(LWI , [-0.2,1], 'test')
+        end
     end
-end
-    %% Trial prep
+    %% Trial prep 
     sm.trialType_cursorOn = trialStuff.condTrialBool(sm.trialNum,1);
     sm.trialType_feedbackLinked = trialStuff.condTrialBool(sm.trialNum,2);
     sm.trialType_rewardOn = trialStuff.condTrialBool(sm.trialNum,3);
@@ -346,9 +444,17 @@ end
         data.ROIs.cursor_output = data.ROIs.cursor_brain;
         sm.fakeFeedback_inUse = 0;
     end
+   
     
-    sm.CS_quiescence = algorithm_quiescence(data.ROIs.cursor_brain, params.cursor.threshold_quiescence);
-    sm.CS_threshold = algorithm_thresholdState(data.ROIs.cursor_output, params.cursor.threshold_reward);
+    %     sm.CS_quiescence = algorithm_quiescence(data.ROIs.cursor_brain, sm.cursor.threshold_quiescence);
+    % Assumption: The last decoder is avgVector
+    if strcmp(params.mode, 'BMI')
+        sm.CS_quiescence = algorithm_cursor_quiescence(data.ROIs.cursor_positions, data.ROIs.decoder_magnitudes, sm.cursor.factor_to_use, sm.cursor.thresh_quiescence_cursorDecoder, sm.cursor.thresh_quiescence_cursorMag);
+    elseif strcmp(params.mode, 'baseline')
+%         Just a dummy variable
+        sm.CS_quiescence = 1;
+    end
+    sm.CS_threshold = algorithm_thresholdState(data.ROIs.cursor_output, sm.cursor.threshold_reward);
     
     %%  ===== TRIAL STRUCTURE =====
     % CE = current epoch
@@ -371,7 +477,7 @@ end
         sm.CE_buildingUpStats = 0;
         sm.ET_waitForBaseline = 1;
     end
-    
+        
     % START WAIT FOR BASELINE
     if sm.ET_waitForBaseline
         sm.ET_waitForBaseline = 0;
@@ -382,23 +488,29 @@ end
     end
     % WAIT FOR BASELINE
     if sm.CE_waitForBaseline
-        if sm.CS_quiescence == 1
-            sm.counter_quiescenceHold = sm.counter_quiescenceHold + 1;
-        else
-            sm.counter_quiescenceHold = 0;
+        if strcmp(params.mode, 'BMI')
+            if sm.CS_quiescence == 1
+                sm.counter_quiescenceHold = sm.counter_quiescenceHold + 1;
+            else
+                sm.counter_quiescenceHold = 0;
+            end
+        elseif strcmp(params.mode, 'baseline')
+            if rand > 0.6
+                sm.counter_quiescenceHold = sm.counter_quiescenceHold + 1;
+            end
         end
     end
     % END WAIT FOR BASELINE (QUIESCENCE ACHIEVED)
-%     if sm.CE_waitForBaseline && sm.CS_quiescence
-%         sm.CE_waitForBaseline = 0;
-%         sm.ET_trialStart = 1;
-%     end
-
+    %     if sm.CE_waitForBaseline && sm.CS_quiescence
+    %         sm.CE_waitForBaseline = 0;
+    %         sm.ET_trialStart = 1;
+    %     end
+    
     % 2022/10/10 Let them HOLD the quiescence
-    if sm.CE_waitForBaseline && (sm.counter_quiescenceHold > params.trial.duration_quiescenceHold*params.timing.frameRate)
+    if sm.CE_waitForBaseline && (sm.counter_quiescenceHold > params.trial.duration_quiescenceHold)
         sm.CE_waitForBaseline = 0;
         sm.ET_trialStart = 1;
-    end 
+    end
     
     % START TRIAL
     if sm.ET_trialStart
@@ -466,7 +578,7 @@ end
     end
     
     % END TRIAL: THRESHOLD REACHED
-    if sm.CE_trial && sm.counter_CS_threshold >= round(params.timing.frameRate * params.trial.duration_threshold)
+    if sm.CE_trial && sm.counter_CS_threshold >= params.trial.duration_threshold
         updateLoggerTrials_END(1)
         sm.CE_trial = 0;
         %     ET_rewardToneHold = 1;
@@ -491,8 +603,8 @@ end
         end
         sm.NumOfRewardsAcquired = sm.NumOfRewardsAcquired + 1;
         
-        %         save([params.directory , '\logger.mat'], 'logger')
-        %         saveParams(params.directory)
+        %         save([params.paths.directory , '\logger.mat'], 'logger')
+        %         saveParams(params.paths.directory)
         %         disp(['Logger & Params Saved: frameCounter = ' num2str(frameNum)]);
     end
     % COUNT DELIVER REWARD
@@ -548,9 +660,9 @@ end
 
 if sm.CE_experimentRunning
     if sm.frequencyOverride
-        data.voltage_cursorCurrentPos = convert_cursor_to_voltage(params.cursor.threshold_reward , params.cursor.bounds_cursor , params.cursor.voltage_at_threshold);
+        data.voltage_cursorCurrentPos = convert_cursor_to_voltage(sm.cursor.threshold_reward , sm.cursor.bounds_cursor , sm.cursor.voltage_at_threshold);
     else
-        data.voltage_cursorCurrentPos = convert_cursor_to_voltage(data.ROIs.cursor_output , params.cursor.bounds_cursor, params.cursor.voltage_at_threshold);
+        data.voltage_cursorCurrentPos = convert_cursor_to_voltage(data.ROIs.cursor_output , sm.cursor.bounds_cursor, sm.cursor.voltage_at_threshold);
     end
 %     data.voltage_cursorCurrentPos = (mod(frameNum,2)+0.5);
 %     source.hSI.task_cursorCurrentPos.writeAnalogData(double(data.voltage_cursorCurrentPos));
@@ -558,13 +670,13 @@ if sm.CE_experimentRunning
     data.freqToOutput = convert_voltage_to_frequency(data.voltage_cursorCurrentPos , 3.3 , params.cursor.range_freqOutput); % for logging purposes only. function should mimic (exactly) the voltage to frequency transformation on teensy
 end
 
-% save([params.directory , '\logger.mat'], 'logger')
-% saveParams(params.directory)
+% save([params.paths.directory , '\logger.mat'], 'logger')
+% saveParams(params.paths.directory)
 % disp(['Logger & Params Saved: frameCounter = ' num2str(frameNum)]);
 
 %% Plotting
 
-% if frameNum>1
+if frameNum>1
 % %     plotUpdatedOutput(data.ROIs.vals_neurons(:,1:10) + [1:10]*500, params.timing.duration_plotting, params.timing.frameRate, 'neurons', 1, 1),
 %     plotUpdatedOutput(data.ROIs.dFoF(:,1:10) + [1:10]*2, params.timing.duration_plotting, params.timing.frameRate, 'neurons', 1, 1),
 %     
@@ -578,8 +690,14 @@ end
 %             params.timing.duration_plotting, params.timing.frameRate, 'Motion Correction Correlation Rolling', 10, 12)
 %     end
 %     
+% %     disp(isreal(data.ROIs.cursor_output))
+% %     disp(isreal(data.ROIs.cursor_brain))
 %     plotUpdatedOutput6([data.ROIs.cursor_output, data.ROIs.cursor_brain],...
 %         params.timing.duration_plotting, params.timing.frameRate, ['cursor_output', 'cursor_brain'] , 10,3)
+% 
+% %     disp(numel([data.ROIs.cursor_visualize, data.ROIs.cursor_brain]))
+% %     plotUpdatedOutput6([data.ROIs.cursor_visualize, data.ROIs.cursor_brain],...
+% %         params.timing.duration_plotting, params.timing.frameRate, ['cursor_outputs', 'cursor_brain'] , 10,3)
 %     
 %     
 %     if mod(frameNum,30) == 0 && frameNum > 300
@@ -590,12 +708,19 @@ end
 %     plotUpdatedOutput7(data.MC.maxCorr_z,...
 %         params.timing.duration_plotting, params.timing.frameRate, 'Z Frame Correlations', 10, 10)
 %     
+%     plotUpdatedOutput8(data.ROIs.decoder_magnitudes + [1:length(data.ROIs.decoder_magnitudes)]*5, params.timing.duration_plotting, params.timing.frameRate, 'magnitudes', 5, 1),
+%     plotUpdatedOutput9(data.ROIs.decoder_angles + [1:length(data.ROIs.decoder_angles)]*1.5, params.timing.duration_plotting, params.timing.frameRate, 'angles', 5, 1),
+%     
+% %     plotUpdatedOutput3([gather(data.ROIs.vals_neuropil(1)), gather(data.ROIs.vals_neuropil(2))], ...
+% %         params.timing.duration_plotting, params.timing.frameRate, ['test'] , 1,1)
 %     drawnow
-% end
+end
 
 %% DATA LOGGING
 if ~isnan(frameNum)
     logger_valsROIs(frameNum,:) = data.ROIs.vals_neurons; %already done above
+    logger_dFoFROIs(frameNum,:) = data.ROIs.dFoF;
+    logger_dFoFbaseROIs(frameNum,:) = data.ROIs.F_baseline;
     
     logger.timeSeries(frameNum,1) = frameNum;
     logger.timeSeries(frameNum,2) = sm.CS_quiescence;
@@ -632,6 +757,13 @@ if ~isnan(frameNum)
     logger.timeSeries(frameNum,33) = sm.trialType_rewardOn;
     logger.timeSeries(frameNum,34) = sm.counter_last_z_correction;
     logger.timeSeries(frameNum,35) = sm.delta_moved;
+    logger.timeSeries(frameNum,36) = sm.blocks.blockNum;
+    logger.timeSeries(frameNum,37) = sm.cursor.factor_to_use;
+    logger.timeSeries(frameNum,38) = sm.cursor.angle_power;
+    logger.timeSeries(frameNum,39) = sm.cursor.threshold_reward;
+    logger.timeSeries(frameNum,40) = sm.cursor.thresh_quiescence_cursorDecoder;
+    logger.timeSeries(frameNum,41) = sm.cursor.thresh_quiescence_cursorMag;
+    logger.timeSeries(frameNum,42) = sm.cursor.win_smooth_cursor;
     
     
     logger.timers(frameNum,1) = now;
@@ -642,21 +774,28 @@ if ~isnan(frameNum)
     logger.decoder(frameNum,3) = data.ROIs.cursor_output;
     logger.decoder(frameNum,4) = data.freqToOutput; % note that this is just approximate, since calculation is done on teensy
     logger.decoder(frameNum,5) = data.voltage_cursorCurrentPos;
+    logger.decoder(frameNum,6) = data.ROIs.decoder_angles(sm.cursor.factor_to_use);   % this is computed above
+    logger.decoder(frameNum,7) = data.ROIs.decoder_angles(end);   % this is computed above
+    
+    logger.factor_space.magnitudes(frameNum,:) = data.ROIs.decoder_magnitudes;
+    logger.factor_space.angles(frameNum,:)     = data.ROIs.decoder_angles;
+    logger.factor_space.decoders(frameNum,:)     = data.ROIs.cursor_positions;
+
     
     logger.motionCorrection(frameNum,1) = gather(data.MC.xShift);
     logger.motionCorrection(frameNum,2) = gather(data.MC.yShift);
     logger.motionCorrection(frameNum,3) = gather(data.MC.maxCorr_2d(1));
     logger.motionCorrection(frameNum,4) = data.MC.current_position_z;
     logger.motionCorrection(frameNum,5) = sm.delta_moved;
-    logger.motionCorrection(frameNum,6:10) = data.MC.maxCorr_z(1:end); 
+    logger.motionCorrection(frameNum,6:10) = data.MC.maxCorr_z(1:end);
 end
 
 %% End Session
 % if  sm.CE_experimentRunning && (frameNum == round(params.timing.duration_session * 0.90))
 % %     source.hSI.task_cursorAmplitude.writeDigitalData(0);
 % %     source.hSI.task_goalAmplitude.writeDigitalData(0);
-%     saveLogger(params.directory);
-%     saveParams(params.directory);
+%     saveLogger(params.paths.directory);
+%     saveParams(params.paths.directory);
 % %     source.hSI.task_cursorAmplitude.writeDigitalData(1);
 % %     source.hSI.task_goalAmplitude.writeDigitalData(1);
 % end
@@ -684,14 +823,39 @@ end
         logger.trials(sm.trialNum,4) = sm.trialType_cursorOn;
         logger.trials(sm.trialNum,5) = sm.trialType_feedbackLinked;
         logger.trials(sm.trialNum,6) = sm.trialType_rewardOn;
+        logger.trials(sm.trialNum,7) = sm.blocks.blockNum;
+        logger.trials(sm.trialNum,8) = sm.cursor.factor_to_use;
     end
     function updateLoggerTrials_END(success_outcome) % calls at end of a trial
-        logger.trials(sm.trialNum,7) = sm.trialNum;
-        logger.trials(sm.trialNum,8) = now;
-        logger.trials(sm.trialNum,9) = frameNum;
-        logger.trials(sm.trialNum,10) = success_outcome;
+        logger.trials(sm.trialNum,9) = sm.trialNum;
+        logger.trials(sm.trialNum,10) = now;
+        logger.trials(sm.trialNum,11) = frameNum;
+        logger.trials(sm.trialNum,12) = success_outcome;
     end
     function startSession
+        % If block-trial, INITIALIZE PARAMETERS
+        if strcmp(params.mode, 'BMI') && params.blocks.block_trial
+            params.blocks.blockNum_cap       = baselineStuff.block_sequence.blockNum_cap; % After this number of block trials, finish the exp.
+
+            sm.blocks = baselineStuff.block_sequence.blocks(1);
+            sm.cursor = baselineStuff.cursors(sm.blocks.cursor_to_use);
+            
+%             temp_cursor_visualize = unique(sort([baselineStuff.block_sequence.blocks.cursor_to_use]));
+%             params.factor_visualize = [baselineStuff.cursors(temp_cursor_visualize).factor_to_use];
+            params.blocks.blockNum_cap       = baselineStuff.block_sequence.blockNum_cap; % After this number of block trials, finish the exp.
+            
+            sm.blocks.blockNum  = 1; % 1-INDEXED!!!
+            sm.blocks.frameNum_blockStart  =  params.trial.duration_buildingUpStats;
+            sm.blocks.rewardNum_blockStart  = 0;
+            disp(sm.blocks)
+            disp(sm.cursor)
+        else
+            sm.blocks  = struct();
+            sm.blocks.blockNum = 0;
+            params.blocks.blockNum_cap = inf;
+            sm.cursor = params.cursor();
+        end
+        
         % INITIALIZE VARIABLES
         sm.CE_waitForBaseline = 0;
         sm.CS_quiescence = 0;
@@ -727,7 +891,7 @@ end
         sm.NumOfRewardsAcquired = 0;
         sm.NumOfTimeouts = 0;
         sm.trialNum = 1;
-
+        
         loggerNames.timeSeries{1} = 'frameNum';
         loggerNames.timeSeries{2} = 'CS_quiescence';
         loggerNames.timeSeries{3} = 'ET_trialStart';
@@ -763,7 +927,14 @@ end
         loggerNames.timeSeries{33} = 'trialType_rewardOn';
         loggerNames.timeSeries{34} = 'counter_last_z_correction';
         loggerNames.timeSeries{35} = 'delta_moved';
-
+        loggerNames.timeSeries{36} = 'blockNum';
+        loggerNames.timeSeries{37} = 'cursor_factor_to_use';
+        loggerNames.timeSeries{38} = 'cursor_angle_power';
+        loggerNames.timeSeries{39} = 'cursor_threshold_reward';
+        loggerNames.timeSeries{40} = 'cursor_thresh_quiescence_cursorDecoder';
+        loggerNames.timeSeries{41} = 'cursor_thresh_quiescence_cursorMag';
+        loggerNames.timeSeries{42} = 'cursor_win_smooth_cursor';
+        
         loggerNames.timers{1} = 'time_now';
         loggerNames.timers{2} = 'tic_toc';
         
@@ -772,6 +943,8 @@ end
         loggerNames.decoder{3} = 'cursor_output';
         loggerNames.decoder{4} = 'freqToOutput';
         loggerNames.decoder{5} = 'voltage_cursorCurrentPos';
+        loggerNames.decoder{6} = 'decoder_angles';
+        loggerNames.decoder{7} = 'avgVec_angle';
         
         loggerNames.motionCorrection{1} = 'xShift';
         loggerNames.motionCorrection{2} = 'yShift';
@@ -790,26 +963,43 @@ end
         loggerNames.trials{4} = 'trialType_cursorOn';
         loggerNames.trials{5} = 'trialType_feedbackLinked';
         loggerNames.trials{6} = 'trialType_rewardOn';
-        loggerNames.trials{7} = 'trialNum_trialEnd';
-        loggerNames.trials{8} = 'time_now_trialEnd';
-        loggerNames.trials{9} = 'frameNum_trialEnd';
-        loggerNames.trials{10} = 'success_outcome';
-
+        loggerNames.trials{7} = 'blockNum';
+        loggerNames.trials{8} = 'factor_to_use';
+        loggerNames.trials{9} = 'trialNum_trialEnd';
+        loggerNames.trials{10} = 'time_now_trialEnd';
+        loggerNames.trials{11} = 'frameNum_trialEnd';
+        loggerNames.trials{12} = 'success_outcome';
+        
         %         clear logger
         logger.timeSeries = NaN(params.timing.duration_session, length(loggerNames.timeSeries));
         logger.timers = NaN(params.timing.duration_session, length(loggerNames.timers));
         logger.decoder = NaN(params.timing.duration_session, length(loggerNames.decoder));
         logger.motionCorrection = NaN(params.timing.duration_session,  length(loggerNames.motionCorrection));
         logger.trials = NaN(size(trialStuff.condTrials,1),  length(loggerNames.trials));
-
-        logger_valsROIs = nan(params.timing.duration_session , rois.numCells);
-%         data.ROIs.runningVals = nan(params.rollingStats.duration_rolling , rois.numCells);
-%         data.ROIs.running_cursor_raw = nan(params.rollingStats.duration_rolling , 1);
+        logger.factor_space = struct();
+        if strcmp(params.mode, 'BMI')
+            logger.factor_space.magnitudes = NaN(params.timing.duration_session, size(baselineStuff.factor_space, 2));
+            logger.factor_space.angles     = NaN(params.timing.duration_session, size(baselineStuff.factor_space, 2));
+            logger.factor_space.decoders     = NaN(params.timing.duration_session, size(baselineStuff.factor_space, 2));
+        end
         
-%         rolling_var_obj_cells = rolling_var_and_mean();
-%         rolling_var_obj_cells = rolling_var_obj_cells.set_key_properties(size(data.ROIs.runningVals) , params.rollingStats.duration_rolling);
-%         rolling_var_obj_cursor = rolling_var_and_mean();
-%         rolling_var_obj_cursor = rolling_var_obj_cursor.set_key_properties([1,1] , params.rollingStats.duration_rolling);
+        
+        % 20230325 Log class single
+        logger_valsROIs = single(nan(params.timing.duration_session , rois.numCells));
+%         logger_valsROIs = nan(params.timing.duration_session , rois.numCells);
+        
+        % 20230320 online dFoF logging
+        % 20230325 Log class single
+        logger_dFoFROIs = single(nan(params.timing.duration_session , rois.numCells));
+        logger_dFoFbaseROIs = single(nan(params.timing.duration_session , rois.numCells));
+        
+        data.ROIs.runningVals = nan(params.dFoF.duration_rolling , rois.numCells);
+        data.ROIs.running_cursor_raw = nan(params.dFoF.duration_rolling , 1);
+        
+        rolling_var_obj_cells = rolling_var_and_mean();
+        rolling_var_obj_cells = rolling_var_obj_cells.set_key_properties(size(data.ROIs.runningVals) , params.dFoF.duration_rolling);
+        rolling_var_obj_cursor = rolling_var_and_mean();
+        rolling_var_obj_cursor = rolling_var_obj_cursor.set_key_properties([1,1] , params.dFoF.duration_rolling);
         
         rolling_z_mean_obj = rolling_var_and_mean();
         rolling_z_mean_obj = rolling_z_mean_obj.set_key_properties(size(permute(data.MC.im_buffer_rolling_z, [3,1,2])), params.MC.numFrames_avgWin_zCorr);
@@ -817,7 +1007,7 @@ end
         data.ROIs.counter_runningVals = 1;
         data.ROIs.counter_runningCursor = 1;
 
-        %         saveParams(params.directory)
+        %         saveParams(params.paths.directory)
     end
 
     function endSession
@@ -825,11 +1015,11 @@ end
         frameNum = NaN;
         sm.CE_experimentRunning = 0;
         
-        saveLogger(params.directory)
-        saveParams(params.directory)
+        saveLogger(params.paths.directory)
+        saveParams(params.paths.directory)
         disp('=== Loggers and expParams saved ===')
         
-
+        
         sm.CE_waitForBaseline = 0;
         sm.CS_quiescence = 0;
         sm.ET_trialStart = 0;
@@ -852,7 +1042,7 @@ end
         sm.ET_timeout = 0;
         sm.CE_timeout = 0;
         sm.counter_timeout = 0;
-
+        
         %         frameNum = 0;
         sm.CE_buildingUpStats = 0;
         %         sm.CE_experimentRunning = 0;
@@ -878,28 +1068,27 @@ end
 %         %         save([directory , '\motionCorrectionRefImages.mat'], 'motionCorrectionRefImages')
 %     end
 
-
 %     function [refIm_crop_conjFFT_shift, refIm_crop, indRange_y_crop, indRange_x_crop] = make_fft_for_MC(refIm)
 %         refIm = single(refIm);
 %         % crop_factor = 5;
 %         crop_size = 256; % MAKE A POWER OF 2! eg 32,64,128,256,512
-% 
+%
 %         length_x = size(refIm,2);
 %         length_y = size(refIm,1);
 %         middle_x = size(refIm,2)/2;
 %         middle_y = size(refIm,1)/2;
-% 
+%
 %         % indRange_y_crop = [round(middle_y - length_y/crop_factor) , round(middle_y + length_y/crop_factor) ];
 %         % indRange_x_crop = [round(middle_x - length_y/crop_factor) , round(middle_x + length_y/crop_factor) ];
-% 
+%
 %         indRange_y_crop = [round(middle_y - (crop_size/2-1)) , round(middle_y + (crop_size/2)) ];
 %         indRange_x_crop = [round(middle_x - (crop_size/2-1)) , round(middle_x + (crop_size/2)) ];
-%     
+%
 %         refIm_crop = refIm(indRange_y_crop(1) : indRange_y_crop(2) , indRange_x_crop(1) : indRange_x_crop(2)) ;
-% 
+%
 %         refIm_crop_conjFFT = conj(fft2(refIm_crop));
 %         refIm_crop_conjFFT_shift = fftshift(refIm_crop_conjFFT);
-% 
+%
 %         % size(refIm_crop_conjFFT_shift,1);
 %         % if mod(size(refIm_crop_conjFFT_shift,1) , 2) == 0
 %         %     disp('RH WARNING: y length of refIm_crop_conjFFT_shift is even. Something is very wrong')
@@ -907,7 +1096,7 @@ end
 %         % if mod(size(refIm_crop_conjFFT_shift,2) , 2) == 0
 %         %     disp('RH WARNING: x length of refIm_crop_conjFFT_shift is even. Something is very wrong')
 %         % end
-% 
+%
 % %         refIm_crop_conjFFT_shift_centerIdx = ceil(size(refIm_crop_conjFFT_shift)/2);
 %     end
 
@@ -931,7 +1120,7 @@ end
         
         fastZDevice = source.hSI.hFastZ.currentFastZs{1};
         %Select the FastZ device (you likely have just one, so index at 1)
-
+        
         currentPosition = fastZDevice.targetPosition;
         
         if ~exist('position')
@@ -946,14 +1135,14 @@ end
         if range_position(1) > newPosition | range_position(2) < newPosition
             error(['RH ERROR: newPosition if out of range. Range: ', range_position, ' Attempted position: ', newPosition])
         end
-            
-%         force = true;
+        
+        %         force = true;
         % do the move even if it is a grab or loop acquisition. Don't try using this with a stack acquisition.
-
-    %     source.hSI.hFastZ.move(fastZDevice, position,  force);
-    
+        
+        %     source.hSI.hFastZ.move(fastZDevice, position,  force);
+        
         source.hSI.hFastZ.move(fastZDevice, newPosition);
-
+        
     end
 %     toc
 end

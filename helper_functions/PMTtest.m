@@ -78,5 +78,7 @@ outputs.N_photon = N_photon;
 outputs.path_imLight = path_imLight;
 outputs.path_imDark = path_imDark;
 
-save(path_save, 'outputs');
+if nargin >= 3
+    save(path_save, 'outputs');
+end
 

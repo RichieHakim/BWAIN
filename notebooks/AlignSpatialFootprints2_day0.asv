@@ -373,14 +373,9 @@ spatial_footprints_dense_weighted = zeros(numCells , frame_height , frame_width)
 Fneu_masks_dense = zeros(numCells , frame_height, frame_width );
 % Fneu_masks_dense_weighted = zeros(numCells , frame_height, frame_width);
 
-tmpcoo = spatialFootprints_COO_1idx;
-spatialFootprints = sparse(double(tmpcoo.row), double(tmpcoo.col), double(tmpcoo.data), double(tmpcoo.shape(1)), double(tmpcoo.shape(2)));
-tmpcoo = neuropilMasks_COO_1idx;
-neuropilMasks = sparse(double(tmpcoo.row), double(tmpcoo.col), double(tmpcoo.data), double(tmpcoo.shape(1)), double(tmpcoo.shape(2)));
-
 for ii = 1:size(spatialFootprints, 1)
 
-    sf_tmp = spatialFootprints(ii,:);
+    sf_tmp = spatialFootprints_COO_1idx(ii,:);
     scale_factor = 1/sum(nonzeros(sf_tmp));
     
     spatial_footprints_dense(ii, :, :) = reshape(spatialFootprints(ii,:), [frame_width, frame_height])' * scale_factor;
