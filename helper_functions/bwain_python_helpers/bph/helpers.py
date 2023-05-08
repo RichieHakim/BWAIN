@@ -284,7 +284,7 @@ def function_call(func_str, args=[], kwargs={}):
 
     return func(*args, **kwargs)
 
-def SI_stack_to_BWAIN_stack(
+def dense_stack_to_sparse_stack(
     stack_in, 
     num_frames_per_slice=60, 
     num_slices=25, 
@@ -330,7 +330,7 @@ def SI_stack_to_BWAIN_stack(
     slices_rs = np.mean(slices_rs, axis=(0, 2))
 
     stack_out = slices_rs[idx_slices]
-    return stack_out
+    return stack_out, positions_idx
 
 ###############################################################################################################
 ############################################ FROM SKIMAGE #####################################################
