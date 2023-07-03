@@ -35,7 +35,7 @@ pp.trial.duration_threshold       = json_params.simulation.duration_threshold_ho
 
 %% Pull from expParams file
 % pulls all fields, but then you can delete ones you want
-filepath_expParams = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\expParams.mat';
+filepath_expParams = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data\expParams.mat';
 clear expParams
 load(filepath_expParams);
 assert(exist('expParams') > 0)

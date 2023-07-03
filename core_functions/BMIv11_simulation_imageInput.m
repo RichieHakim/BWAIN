@@ -37,7 +37,8 @@ data.MC.current_position_z = 0;
 if frameNum == 1
     % SETTINGS: General
     params.paths.directory = 'D:\RH_local\data\BMI_cage_g8Test\mouse_g8t\20230314\analysis_data';
-    params.paths.expSettings = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\expParams.mat';  %% Set to false to not pull expSettings
+%     params.paths.expSettings = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\day0_analysis\expSettings.mat';  %% Set to false to not pull expSettings
+    params.paths.expSettings = false;
 
     % SETTINGS: TIMING
     params.timing.frameRate          = 30;
@@ -62,7 +63,7 @@ if frameNum == 1
     params.cursor.thresh_quiescence_cursorDecoder = simulation_args.thresh_quiescence_cursorDecoder;
     params.cursor.thresh_quiescence_cursorMag = simulation_args.thresh_quiescence_cursorMag;
     
-    params.cursor.win_smooth_cursor    = 3; % smoothing window (in frames)
+    params.cursor.win_smooth_cursor    = 1; % smoothing window (in frames)
     params.cursor.bounds_cursor        = [-params.cursor.threshold_reward , params.cursor.threshold_reward *1.5];
     params.cursor.range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
     params.cursor.voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
@@ -114,7 +115,8 @@ if frameNum == 1
     if isscalar(params.paths.expSettings)==false
         if isfile(params.paths.expSettings)
             clear expSettings
-            load(params.paths.expSettings);
+%             load(params.paths.expSettings);  % To avoid adding variable to a static workspace
+            load(params.paths.expSettings, 'expSettings');
             assert(exist('expSettings') > 0, 'RH ERROR: Imported file from params.paths.expSettings, but variable name is not expSettings');
             
             % overwrite all parameters contained within expSettings

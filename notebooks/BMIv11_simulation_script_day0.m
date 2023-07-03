@@ -10,7 +10,7 @@ Fall = load(path_Fall);
 %%
 % Import weights computed from Day 0
 
-dir_analysis_day0 = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\simulation';
+dir_analysis_day0 = 'D:\RH_local\data\cage_0322\mouse_0322R\20230502\analysis_data\simulation_newFactor';
 % dir_analysis_day0 = 'D:\RH_local\data\cage_0315\mouse_0315N\20230404\analysis_data';
 
 
@@ -27,7 +27,7 @@ dir_analysis_day0 = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_da
 %% Import trialStuff for today's experiment
 fileName_trialStuff = 'trialStuff.mat';
 
-dir_analysis_dayN =  'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data\simulation';
+dir_analysis_dayN =  'D:\RH_local\data\cage_0322\mouse_0322R\20230502\analysis_data\simulation_newFactor';
 % dir_analysis_dayN =  'D:\RH_local\data\cage_0315\mouse_0315N\20230411\analysis_data';
 path_trialStuff = [dir_analysis_dayN , '\' , fileName_trialStuff];
 load(path_trialStuff);
@@ -64,12 +64,12 @@ stack = getfield(tmp, names{1});
 
 %% Import movie (optional)
 % Should be in day N-1 or day 0 folder
-directory_movie = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\scanimage_data\exp';
+directory_movie = 'D:\RH_local\data\cage_0322\mouse_0322R\20230502\scanimage_data\exp';
 fileName_movie = 'exp';
 % fileName_movie = 'baseline';
 
 % frames_totalExpected = 108000;
-frames_totalExpected = 9000;
+frames_totalExpected = 18000;
 % frames_totalExpected = 10000;
 frames_perFile = 1000;
 
@@ -175,7 +175,7 @@ simulation_args = struct();
 simulation_args.threshold_reward = 1.5; % Reward if cursor_brain > threshold_reward
 simulation_args.thresh_quiescence_cursorDecoder = 0.15; % Quiescence if CS(cursor) <= threshold_quiescence
 simulation_args.thresh_quiescence_cursorMag = 0; % Quiescence if CS(avgVector) >= threshold_quiescence_avgVec
-simulation_args.factor_to_use = 3;
+simulation_args.factor_to_use = 1;
 simulation_args.angle_power = 2;
 
 %     % 20230327 Block Structure Simulation

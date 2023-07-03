@@ -33,11 +33,13 @@ data.MC.current_position_z = source.hSI.hFastZ.currentFastZs{1}.targetPosition;
 %% == USER SETTINGS ==
 if frameNum == 1
     % SETTINGS: General
-    params.paths.directory = 'D:\RH_local\data\cage_0315\mouse_0315N\20230425\analysis_data';
-    params.paths.expSettings = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\day0_analysis\expSettings.mat';
+    params.paths.directory = 'D:\RH_local\data\cage_0403\mouse_0403L\20230703\analysis_data';
+%     params.paths.expSettings = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\analysis_data\day0_analysis\expSettings.mat';
+    params.paths.expSettings = false;
 
-%     params.paths.directory = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data';
-%     params.paths.expSettings = 'D:\RH_local\data\cage_0322\mouse_0322R\20230424\analysis_data\expSettings.mat';  %% Set to false to not pull expSettings
+%     params.paths.directory = 'D:\RH_local\data\cage_0403\mouse_0403R\20230703\analysis_data';
+% %     params.paths.expSettings = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\analysis_data\day0_analysis\expSettings.mat';  %% Set to false to not pull expSettings
+%     params.paths.expSettings = false;
     
     % SETTINGS: TIMING
     params.timing.frameRate          = 30;
@@ -51,6 +53,12 @@ if frameNum == 1
     
     disp(['duration_session :  ', num2str(params.timing.duration_session)])
     
+    % 20230509 Log Frames / File check
+    disp(['Log Frames per File :  ', num2str(source.hSI.hScan2D.logFramesPerFile)])
+    if source.hSI.hScan2D.logFramesPerFile ~= 1000
+        error('Frames per File is not 1000')
+    end
+    
     % SETTINGS: Motion correction
     params.MC.numFrames_avgWin_zCorr      = 30*2;
     params.MC.intervalFrames_zCorr        = 5;
@@ -62,7 +70,7 @@ if frameNum == 1
     params.MC.frame_shape_yx              = int64([512,512]);
     
     % SETTINGS: Cursor: Only works for params.trial.block_trial == false
-    params.cursor.factor_to_use = 1;
+    params.cursor.factor_to_use = 2;
     params.cursor.angle_power = 2.0;
  
     params.cursor.threshold_reward     = 1.5;
@@ -74,8 +82,8 @@ if frameNum == 1
     params.cursor.voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
     
     % SETTINGS: Mode
-%     params.mode = 'baseline';
-    params.mode = 'BMI';
+    params.mode = 'baseline';
+%     params.mode = 'BMI';
     
     % SETTINGS: Trials
     % below in unit seconds
@@ -143,6 +151,7 @@ if frameNum == 1
     if strcmp(params.mode, 'BMI')
         type_stack = 'stack_warped';
     elseif strcmp(params.mode, 'baseline')
+        disp('Hello, Baseline Session')
         type_stack = 'stack_sparse';
     end
     zstack = load([params.paths.directory , '\', type_stack, '.mat']);

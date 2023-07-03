@@ -1,10 +1,12 @@
-path_stack = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\scanimage_data\zstack\zstack_960_00001_00001.tif';
-path_save = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data\stack_960nm_dense.mat';
-path_save_sparse = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\analysis_data\stack_sparse.mat';
+% path_mouse = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\'
+path_mouse = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\'
+
+path_stack = fullfile(path_mouse, 'scanimage_data\zstack\zstack_960_00001_00001.tif');
+path_save = fullfile(path_mouse, 'analysis_data\stack_960nm_dense.mat');
+path_save_sparse = fullfile(path_mouse, 'analysis_data\stack_sparse.mat');
 
 num_frames_per_slice = 60;
-% num_slices = 25;
-num_slices = 41; % % 03262023 Increase stack range
+num_slices = 41; % % 03262023 Increase stack range, 25 -> 41
 num_volumes = 10;
 step_size_um = 0.8;
 centered = 1;
@@ -33,7 +35,10 @@ reader = ScanImageTiffReader(path_stack);
 slices_raw = permute(reader.data(),[3,2,1]);
 
 slices_rs = reshape(slices_raw, num_frames_per_slice, num_slices, num_volumes, size(slices_raw,2), size(slices_raw,3));
-slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,:,:,:);
+% slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,:,:,:);
+slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,1:5,:,:);
+disp(size(slices_rs))
+
 stack.stack_avg = squeeze(squeeze(mean(mean(slices_rs, 1), 3)));
 % stack.stack_avg = squeeze(prctile(reshape(slices_raw, num_slices, num_frames_per_slice, size(slices_raw,2), size(slices_raw,3)), zCorrPtile, 2));
 
@@ -41,9 +46,6 @@ save(path_save, 'stack')
 %%
 range = ((num_slices - 1) * step_size_um)/2;
 disp(['range of slices: ', num2str(range)])
-% FAST
-% STEP
-% # Frames/File 100000
 
 %%
 for ii = 1:size(stack.stack_avg, 1)

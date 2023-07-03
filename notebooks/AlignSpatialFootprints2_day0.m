@@ -1,26 +1,20 @@
 %% BMI Ensemble selection script
-% compared to the non 'day0' code. This script doesnt require you to have
-% the assignments of the neuron identities tracing back to the original
-% masks.
-
-% based on program_EnsembleSelection9_manyCells
 
 %% Load weights and baseline Movies
 % 01/29/2023
 
-% Use day 0
-directory_today = 'D:\RH_local\data\cage_0315\mouse_0315N\20230425\scanimage_data\baseline';
-% directory_today = 'D:\RH_local\data\cage_0322\mouse_0322R\20230425\scanimage_data\baseline';
+directory_today = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\scanimage_data\baseline';
+% directory_today = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\scanimage_data\baseline';
 % fileName_movie = 'exp_00';
 fileName_movie = 'baseline_00';
 
 % Load Weights
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\day0_analysis';
-% directory_weights = 'D:\RH_local\data\cage_0322\mouse_0322R\20230424\analysis_data\day0_analysis';
+directory_weights = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\analysis_data\day0_analysis';
+% directory_weights = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\analysis_data\day0_analysis';
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
-
+%% Transpose factors
 % 20230312 factors: (n_neurons, n_components)
 disp(['Loaded Factors shape :    ', num2str(size(factors))])
 if size(factors, 2) > size(factors, 1)
@@ -52,19 +46,8 @@ block_sequence.blocks(1).block_rewardcap = 250; % ADJUSTABLE: Shift decoder fact
 % ONLINE BMI PARAMETER SETTINGS: DECODER DEFINITION. HARDCODED (Sorry!)
 cursors = struct();
 
-% % mouse_0322R
-% cursors(1).factor_to_use = 3;
-% cursors(1).angle_power = 2;
-% cursors(1).threshold_reward     = 1.5;
-% cursors(1).thresh_quiescence_cursorDecoder = 0.15;
-% cursors(1).thresh_quiescence_cursorMag = 0;  
-% cursors(1).win_smooth_cursor    = 1; % smoothing window (in frames)
-% cursors(1).bounds_cursor        = [-cursors(1).threshold_reward , cursors(1).threshold_reward *1.5];
-% cursors(1).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
-% cursors(1).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
-
-% mouse_0315N
-cursors(1).factor_to_use = 1;
+% mouse_0322R_2ndFactorSpace
+cursors(1).factor_to_use = 2;
 cursors(1).angle_power = 2;
 cursors(1).threshold_reward     = 1.5;
 cursors(1).thresh_quiescence_cursorDecoder = 0.15;
@@ -74,32 +57,31 @@ cursors(1).bounds_cursor        = [-cursors(1).threshold_reward , cursors(1).thr
 cursors(1).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
 cursors(1).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
 
+% % mouse_0315N
+% cursors(1).factor_to_use = 1;
+% cursors(1).angle_power = 2;
+% cursors(1).threshold_reward     = 1.5;
+% cursors(1).thresh_quiescence_cursorDecoder = 0.15;
+% cursors(1).thresh_quiescence_cursorMag = 0;  
+% cursors(1).win_smooth_cursor    = 1; % smoothing window (in frames)
+% cursors(1).bounds_cursor        = [-cursors(1).threshold_reward , cursors(1).threshold_reward *1.5];
+% cursors(1).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
+% cursors(1).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
+
 % Choose PCn as decoder dimension: visualization purpose
-factor_to_visualize = 3; % 1-indexed
+factor_to_visualize = cursors(1).factor_to_use; % 1-indexed
 
 % idx_zeroOut = [[215, 339];[798, 899]];  %% [[y1, y2];, [x1, x2]] OR NaN
 idx_zeroOut = NaN;  %% [[y1, y2];, [x1, x2]] OR NaN
 
 %% Load calcium trace
-% directory_refImOld = 'D:\RH_local\data\scanimage data\round 4 experiments\mouse 6.28\20201010';
-% % fileName_refImOld = 'refImOld.mat';
-% fileName_refImOld = 'baselineStuff.mat';
-% % refImOld variable should be named: 'refImOld'
 
-% % Use day N-1 or day 0
-% dir_Fall = 'D:\RH_local\data\cage_0315\mouse_0315N\20230404\analysis_data\suite2p_o2\plane0';
-% fileName_Fall = 'Fall.mat';
-% % Fall variable should be named: 'Fall' (from S2p; contains stat file)
-% load([dir_Fall '\' fileName_Fall]);
-
-% directory_zstack = 'D:\RH_local\data\cage_0322\mouse_0322R\20230420\analysis_data';
-directory_zstack = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\';
+directory_zstack = 'D:\RH_local\data\cage_0322\mouse_0322R\20230502\analysis_data';
+% directory_zstack = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\';
 
 
 % stack_beforeWarp = load([directory_zstack , '\stack.mat']);
 stack_beforeWarp = load([directory_zstack , '\stack_sparse.mat']);
-%%
-% path_spatialFootprints = 'D:\\RH_local\\data\\scanimage data\\round 5 experiments\\mouse 2_6\\20210410_test\\analysis_lastNight\\spatial_footprints_aligned.h5';
 
 %% Import and downsample movie
 frames_totalExpected = 4000;
@@ -711,11 +693,13 @@ imagesc(log(abs(refIm_crop_conjFFT_shift)))
 % make sure these are aligned!!!!!
 
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^1  )
-figure; imshowpair(meanIm , spatial_footprints_warped_all.^1)
+figure; imshowpair(meanIm , spatial_footprints_warped_all.^0.3)
 
 disp(['Mean intensity of meanIm: ', num2str(mean(mean(meanIm)))])
 %%
 figure; imagesc(spatial_footprints_all_weighted*3)
+figure; imshowpair(meanIm, spatial_footprints_all_weighted*3)
+
 
 %%
 clear baselineStuff

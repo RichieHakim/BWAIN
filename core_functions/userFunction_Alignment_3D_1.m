@@ -20,8 +20,8 @@ data.MC.current_position_z = source.hSI.hFastZ.currentFastZs{1}.targetPosition;
 %% == USER SETTINGS ==
 if frameNum == 1
     % SETTINGS: General
-    params.directory = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data';
-%     params.directory = 'D:\RH_local\data\cage_0322\mouse_0322R\20230424\analysis_data';
+    params.directory = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\analysis_data';
+%     params.directory = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\analysis_data';
     
     % SETTINGS: TIMING
     params.timing.frameRate          = 30;
