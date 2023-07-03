@@ -74,7 +74,7 @@ class Shifter_rigid():
     def make_mask(
         self,
         frame_shape_y_x=(512,512),
-        bandpass_spatialFs_bounds=(1/128, 1/3),
+        bandpass_spatialFs_bounds=[1/128, 1/3],
         order_butter=5,
         mask=None,
         plot_pref=False,
@@ -96,6 +96,9 @@ class Shifter_rigid():
             plot_pref (bool):
                 If True, plot the absolute value of the mask.
         """
+        bandpass_spatialFs_bounds = list(bandpass_spatialFs_bounds)
+        bandpass_spatialFs_bounds[0] = max(bandpass_spatialFs_bounds[0], 1e-9)
+
         if (isinstance(mask, (np.ndarray, torch.Tensor))) or ((mask != 'None') and (mask is not None)):
             self.mask = torch.as_tensor(mask, device=self._device, dtype=self._dtype_fft)
             self.mask = mask / mask.sum()
@@ -217,7 +220,7 @@ class Shifter_rigid():
         )
         y_x, cc_max = helpers.phaseCorrelationImage_to_shift_helper(cc)
 
-        return y_x.cpu(), cc_max.cpu()
+        return y_x.cpu(), cc_max.cpu(), cc.cpu()
         
     def __call__(
         self,
