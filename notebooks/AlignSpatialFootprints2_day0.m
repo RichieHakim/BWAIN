@@ -1,19 +1,31 @@
 %% BMI Ensemble selection script
+% TODO: deprecate cellWeightings
+% TODO: add plot to check laser burn or damage over sessions
 
 %% Load weights and baseline Movies
 % 01/29/2023
+% path_mouse = 'D:\RH_local\data\cage_0916\mouse_0916N\';
+path_mouse = 'D:\RH_local\data\cage_0908\mouse_0908\';
 
-directory_today = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\scanimage_data\baseline';
-% directory_today = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\scanimage_data\baseline';
+
+directory_today = fullfile(path_mouse, '20231030\scanimage_data\baseline');
 % fileName_movie = 'exp_00';
 fileName_movie = 'baseline_00';
 
 % Load Weights
 % Should be in day N-1 or day 0 folder
-directory_weights = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\analysis_data\day0_analysis';
-% directory_weights = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\analysis_data\day0_analysis';
+directory_weights = fullfile(path_mouse, '\20231022\analysis_data\day0_analysis');
 fileName_weights = 'weights_day0.mat';
 load([directory_weights '\' fileName_weights]);
+
+% Load params.json file
+% Should be in day 0 folder
+filepath_json = fullfile(path_mouse, '\20231022\analysis_data\day0_analysis\params_day0_2.json');
+if isfile(filepath_json)
+    json_params = json_load(filepath_json);
+else
+    json_params = false;
+end
 %% Transpose factors
 % 20230312 factors: (n_neurons, n_components)
 disp(['Loaded Factors shape :    ', num2str(size(factors))])
@@ -23,6 +35,7 @@ if size(factors, 2) > size(factors, 1)
 end
 %% Important Parameters
 % ONLINE BMI PARAMETER SETTINGS: BLOCK SEQUENCE. HARDCODED (Sorry!)
+% Should rewrite to inherit params.json file from python simulation
 block_sequence = struct();
 block_sequence.blockNum_cap = 1; % MAX number of blocks in exp
 
@@ -30,43 +43,71 @@ block_sequence.blocks(1).cursor_to_use = 1; % call baselineStuff.cursors()
 block_sequence.blocks(1).block_timecap = 60*60; % In seconds. Shift decoder factor after THIS much time spent
 block_sequence.blocks(1).block_rewardcap = 250; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
 
+% block_sequence.blocks(1).cursor_to_use = 1; % call baselineStuff.cursors()
+% block_sequence.blocks(1).block_timecap = 60*10; % In seconds. Shift decoder factor after THIS much time spent
+% block_sequence.blocks(1).block_rewardcap = 100; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
+
 % block_sequence.blocks(2).cursor_to_use = 2; % call baselineStuff.cursors()
-% block_sequence.blocks(2).block_timecap = 60*45; % In seconds. Shift decoder factor after THIS much time spent
-% block_sequence.blocks(2).block_rewardcap = 100; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
+% block_sequence.blocks(2).block_timecap = 60*60; % In seconds. Shift decoder factor after THIS much time spent
+% block_sequence.blocks(2).block_rewardcap = 250; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
 % 
 % block_sequence.blocks(3).cursor_to_use = 1; % call baselineStuff.cursors()
-% block_sequence.blocks(3).block_timecap = 60*30; % In seconds. Shift decoder factor after THIS much time spent
-% block_sequence.blocks(3).block_rewardcap = 50; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
-% 
-% block_sequence.blocks(4).cursor_to_use = 1; % call baselineStuff.cursors()
-% block_sequence.blocks(4).block_timecap = 60*30; % In seconds. Shift decoder factor after THIS much time spent
-% block_sequence.blocks(4).block_rewardcap = 50; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
+% block_sequence.blocks(3).block_timecap = 60*10; % In seconds. Shift decoder factor after THIS much time spent
+% block_sequence.blocks(3).block_rewardcap = 100; % ADJUSTABLE: Shift decoder factor after THIS number of rewards
 
+% 20230724 !!!Experiment length sanity check!!! Unit in seconds
+block_sequence.expected_duration_session = 60*60;
 
-% ONLINE BMI PARAMETER SETTINGS: DECODER DEFINITION. HARDCODED (Sorry!)
+% ONLINE BMI PARAMETER SETTINGS: DECODER DEFINITION.
+% Inherit from params.json, or hard code.
+% 20230724 Iterate over different cursors
+% TODO 20230819 make it better
 cursors = struct();
+if isstruct(json_params)
+    disp('Inherit simulation configuration')
+    if size(json_params.simulation, 1) == 1
+        factors_list = {"simulation"};
+    else
+        factors_list = fieldnames(json_params.simulation);
+    end
+    for ii=1:length(factors_list)
+        current_simulation_factor = factors_list{ii};
+        try
+            current_simulation_params = getfield(json_params.simulation, current_simulation_factor);
+        catch
+            current_simulation_params = getfield(json_params, current_simulation_factor);
+        end
+        
+%         cursors(ii).factor_to_use = json_params.simulation.idx_factor + 1; % 0-indexing issue
+%         cursors(ii).angle_power = json_params.simulation.power;
+%         cursors(ii).threshold_reward     = json_params.simulation.thresh_reward;
+%         cursors(ii).thresh_quiescence_cursorDecoder = json_params.simulation.thresh_quiescence_cursorDecoder;
+%         cursors(ii).thresh_quiescence_cursorMag = json_params.simulation.thresh_quiescence_cursorMag;  
+%         cursors(ii).win_smooth_cursor    = json_params.simulation.win_smooth_cursor; % smoothing window (in frames)
 
-% mouse_0322R_2ndFactorSpace
-cursors(1).factor_to_use = 2;
-cursors(1).angle_power = 2;
-cursors(1).threshold_reward     = 1.5;
-cursors(1).thresh_quiescence_cursorDecoder = 0.15;
-cursors(1).thresh_quiescence_cursorMag = 0;  
-cursors(1).win_smooth_cursor    = 1; % smoothing window (in frames)
-cursors(1).bounds_cursor        = [-cursors(1).threshold_reward , cursors(1).threshold_reward *1.5];
-cursors(1).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
-cursors(1).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
+        cursors(ii).factor_to_use = current_simulation_params.idx_factor + 1; % 0-indexing issue
+        cursors(ii).angle_power = current_simulation_params.power;
+        cursors(ii).threshold_reward     = current_simulation_params.thresh_reward;
+        cursors(ii).thresh_quiescence_cursorDecoder = current_simulation_params.thresh_quiescence_cursorDecoder;
+        cursors(ii).thresh_quiescence_cursorMag = current_simulation_params.thresh_quiescence_cursorMag;  
+        cursors(ii).win_smooth_cursor    = current_simulation_params.win_smooth_cursor; % smoothing window (in frames)
+        cursors(ii).bounds_cursor        = [-cursors(ii).threshold_reward , cursors(ii).threshold_reward *1.5];
+        cursors(ii).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
+        cursors(ii).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
+    end
+else
+    disp('Hard-code cursor configuration')
+    cursors(1).factor_to_use = 2;
+    cursors(1).angle_power = 2;
+    cursors(1).threshold_reward     = 6;
+    cursors(1).thresh_quiescence_cursorDecoder = 0.6;
+    cursors(1).thresh_quiescence_cursorMag = 0;  
+    cursors(1).win_smooth_cursor    = 1; % smoothing window (in frames)
+    cursors(1).bounds_cursor        = [-cursors(1).threshold_reward , cursors(1).threshold_reward *1.5];
+    cursors(1).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
+    cursors(1).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
+end
 
-% % mouse_0315N
-% cursors(1).factor_to_use = 1;
-% cursors(1).angle_power = 2;
-% cursors(1).threshold_reward     = 1.5;
-% cursors(1).thresh_quiescence_cursorDecoder = 0.15;
-% cursors(1).thresh_quiescence_cursorMag = 0;  
-% cursors(1).win_smooth_cursor    = 1; % smoothing window (in frames)
-% cursors(1).bounds_cursor        = [-cursors(1).threshold_reward , cursors(1).threshold_reward *1.5];
-% cursors(1).range_freqOutput     = [1000 18000]; % this is set in the teensy code (only here for logging purposes)
-% cursors(1).voltage_at_threshold = 3.1; % this will be the maximum output voltage ([0:voltage_at_threshold])
 
 % Choose PCn as decoder dimension: visualization purpose
 factor_to_visualize = cursors(1).factor_to_use; % 1-indexed
@@ -76,8 +117,8 @@ idx_zeroOut = NaN;  %% [[y1, y2];, [x1, x2]] OR NaN
 
 %% Load calcium trace
 
-directory_zstack = 'D:\RH_local\data\cage_0322\mouse_0322R\20230502\analysis_data';
-% directory_zstack = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\';
+% directory_zstack = 'D:\RH_local\data\cage_0403\mouse_0403L\20230703\analysis_data';
+directory_zstack = fullfile(path_mouse, '20231022\analysis_data\');
 
 
 % stack_beforeWarp = load([directory_zstack , '\stack.mat']);
@@ -464,6 +505,7 @@ tmp_im_moving = localnormalize(tmp_im_moving, sigma , sigma);
 %
 [D_field, movingReg] = imregdemons(tmp_im_moving ,tmp_im_fixed , 500 , 'PyramidLevels', 4,...
     'AccumulatedFieldSmoothing',2);
+
 %
 figure;
 imshowpair(tmp_im_fixed , tmp_im_moving)
@@ -693,13 +735,14 @@ imagesc(log(abs(refIm_crop_conjFFT_shift)))
 % make sure these are aligned!!!!!
 
 figure; imshowpair(meanIm , spatial_footprints_warped_all.^1  )
-figure; imshowpair(meanIm , spatial_footprints_warped_all.^0.3)
+figure; imshowpair(meanIm , spatial_footprints_warped_all.^100)
 
 disp(['Mean intensity of meanIm: ', num2str(mean(mean(meanIm)))])
 %%
-figure; imagesc(spatial_footprints_all_weighted*3)
-figure; imshowpair(meanIm, spatial_footprints_all_weighted*3)
-
+% figure; imagesc(spatial_footprints_all_weighted*3)
+% figure; imshowpair(meanIm, spatial_footprints_all_weighted*3)
+figure; imagesc(spatial_footprints_warped_weighted_all*3)
+figure; imshowpair(meanIm, spatial_footprints_warped_weighted_all*3)
 
 %%
 clear baselineStuff

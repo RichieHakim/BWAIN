@@ -11,6 +11,8 @@ global logger loggerNames logger_valsROIs logger_dFoFROIs logger_dFoFbaseROIs...
 % persistent  
 
 %% IMPORT DATA
+% TODO: deprecate cellWeightings
+% TODO: depricate params.blocks.block_trial
 
 frameNum = source.hSI.hStackManager.framesDone;
 
@@ -33,19 +35,23 @@ data.MC.current_position_z = source.hSI.hFastZ.currentFastZs{1}.targetPosition;
 %% == USER SETTINGS ==
 if frameNum == 1
     % SETTINGS: General
-    params.paths.directory = 'D:\RH_local\data\cage_0403\mouse_0403L\20230703\analysis_data';
-%     params.paths.expSettings = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\analysis_data\day0_analysis\expSettings.mat';
-    params.paths.expSettings = false;
+%     params.paths.directory = 'D:\RH_local\data\cage_0916\mouse_0916N\20231030\analysis_data';
+%     params.paths.expSettings = 'D:\RH_local\data\cage_0916\mouse_0916N\20231022\analysis_data\day0_analysis\expSettings.mat';
+% %     params.paths.expSettings = false;
 
-%     params.paths.directory = 'D:\RH_local\data\cage_0403\mouse_0403R\20230703\analysis_data';
-% %     params.paths.expSettings = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\analysis_data\day0_analysis\expSettings.mat';  %% Set to false to not pull expSettings
-%     params.paths.expSettings = false;
+%     params.paths.directory = 'D:\RH_local\data\cage_0908\mouse_0908\20231030\analysis_data';
+%     params.paths.expSettings = 'D:\RH_local\data\cage_0908\mouse_0908\20231022\analysis_data\day0_analysis\expSettings.mat';
+% %     params.paths.expSettings = false;
+
+    params.paths.directory = 'D:\RH_local\data\cage_0914\mouse_0914\20231030\analysis_data';
+%     params.paths.expSettings = 'D:\RH_local\data\cage_0415\mouse_0415R\20230816\analysis_data\day0_analysis\expSettings.mat';
+    params.paths.expSettings = false;
     
     % SETTINGS: TIMING
     params.timing.frameRate          = 30;
     params.timing.duration_plotting  = 30 * params.timing.frameRate; % ADJUSTABLE: change number value (in seconds). Duration of x axis in plots
 %     params.timing.duration_session   = params.timing.frameRate*60*60; % ADJUSTABLE: change number value (in seconds/minutes)
-    params.timing.duration_session   = source.hSI.hStackManager.framesPerSlice; % ADJUSTABLE: change number value (in seconds/minutes)
+    params.timing.duration_session   = source.hSI.hStackManager.framesPerSlice;
     
     if params.timing.duration_session == inf % when you click FOCUS...
         params.timing.duration_session = params.timing.frameRate*60*60; % Just a random number that is long enough
@@ -129,6 +135,7 @@ if frameNum == 1
             assert(exist('expSettings') > 0, 'RH ERROR: Imported file from params.paths.expSettings, but variable name is not expSettings');
             
             % overwrite all parameters contained within expSettings
+            disp('Inherit expSettings parameters')
             params = overwrite_struct_fields(params, expSettings);
         else
             error('RH ERROR: params.paths.expSettings is not false, but does not point to a valid file')
@@ -142,6 +149,18 @@ if frameNum == 1
         path_baselineStuff = [params.paths.directory , '\baselineStuff.mat'];
         load(path_baselineStuff);
         disp(['LOADED baselineStuff from:  ' , path_baselineStuff])
+        
+        disp(['duration_session :  ', num2str(params.timing.duration_session)])
+    
+        % 20230724 Experiment Length Sanity Check
+        if source.hSI.hStackManager.framesPerSlice ~= inf % Does not run this part when you hit FOCUS
+            if params.timing.duration_session ~= (baselineStuff.block_sequence.expected_duration_session * params.timing.frameRate)
+                error(['Expected Session Length does not match: Scanimage ',...
+                num2str(params.timing.duration_session),...
+                ', baselineStuff ',...
+                num2str(baselineStuff.block_sequence.expected_duration_session)])
+            end
+        end
     end
     
     path_trialStuff = [params.paths.directory , '\trialStuff.mat'];
@@ -321,12 +340,17 @@ if sm.CE_experimentRunning
             if ~sm.CE_trial && ((frameNum - sm.blocks.frameNum_blockStart >= sm.blocks.block_timecap * params.timing.frameRate) || (sm.NumOfRewardsAcquired - sm.blocks.rewardNum_blockStart >= sm.blocks.block_rewardcap))
                 disp(['Starting new block.'])
                 temp_blockNum = sm.blocks.blockNum + 1;
-                sm.blocks = baselineStuff.block_sequence.blocks(temp_blockNum);
-                sm.cursor = baselineStuff.cursors(sm.blocks.cursor_to_use);
-                sm.blocks.blockNum = temp_blockNum;
+                if temp_blockNum > params.blocks.blockNum_cap
+                    sm.blocks.blockNum = temp_blockNum;
+                    disp(['All Blocks Completed!'])
+                else
+                    sm.blocks = baselineStuff.block_sequence.blocks(temp_blockNum);
+                    sm.cursor = baselineStuff.cursors(sm.blocks.cursor_to_use);
+                    sm.blocks.blockNum = temp_blockNum;
+                    disp(['Current Block: ', num2str(sm.blocks.blockNum), ' / ', num2str(params.blocks.blockNum_cap)])
+                end
                 sm.blocks.frameNum_blockStart = frameNum;
                 sm.blocks.rewardNum_blockStart = sm.NumOfRewardsAcquired;
-                disp(['Current Block: ', num2str(sm.blocks.blockNum)])
                 disp(sm.blocks)
                 disp(sm.cursor)
             end
@@ -784,8 +808,8 @@ end
 %     %     source.hSI.task_goalAmplitude.writeDigitalData(1);
 % end
 
-    
-if sm.CE_experimentRunning && ((sm.NumOfRewardsAcquired == 250) || (frameNum == round(params.timing.duration_session * 0.98)) || (sm.blocks.blockNum > params.blocks.blockNum_cap))
+
+if sm.CE_experimentRunning && ((frameNum == round(params.timing.duration_session * 0.98)) || (sm.blocks.blockNum > params.blocks.blockNum_cap))
     sm.CE_experimentRunning = 0;
     endSession
 end
@@ -820,6 +844,8 @@ end
             
             disp(sm.blocks)
             disp(sm.cursor)
+            disp("dFoF parameters")
+            disp(params.dFoF)
         else
             sm.blocks  = struct();
             sm.blocks.blockNum = 0;

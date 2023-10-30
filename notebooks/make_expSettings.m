@@ -9,7 +9,8 @@
 
 %% Pull from params.json file
 % only pulls specific fields
-filepath_json = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\day0_analysis\params_mouse0315N_2.json';
+filepath_json = 'D:\RH_local\data\cage_0916\mouse_0916N\20231022\analysis_data\day0_analysis\params_day0_2.json';
+% filepath_json = 'D:\RH_local\data\cage_0908\mouse_0908\20231022\analysis_data\day0_analysis\params_day0_2.json';
 json_params = json_load(filepath_json);
 
 pp = struct(); %% 'params pulled'
@@ -21,17 +22,22 @@ pp.dFoF.interval_update  = json_params.dFoF.roll_stride;
 pp.dFoF.frac_neuropil    = json_params.dFoF.neuropil_fraction;
 pp.dFoF.additive_offset  = json_params.dFoF.channelOffset_correction;
 
-pp.cursor = struct();
-pp.cursor.factor_to_use                    = json_params.simulation.idx_factor;
-pp.cursor.angle_power                      = json_params.simulation.power;
-pp.cursor.thresh_quiescence_cursorDecoder  = json_params.simulation.thresh_quiescence_cursorDecoder;
-pp.cursor.thresh_quiescence_cursorMag      = json_params.simulation.thresh_quiescence_cursorMag;
-pp.cursor.angle_power                      = json_params.simulation.power;
-pp.cursor.win_smooth_cursor                = json_params.simulation.win_smooth_cursor;
+pp.dFoF.thresh_violation_F_baseline = json_params.tqm.thresh.base_FneuSub(1);
+pp.dFoF.thresh_violation_dFoF = json_params.tqm.thresh.max_dFoF(end);
 
-pp.trial = struct();
-pp.trial.duration_quiescence_hold = json_params.simulation.duration_quiescence_hold;
-pp.trial.duration_threshold       = json_params.simulation.duration_threshold_hold;
+% These parameters should follow baselineStuff
+% 
+% pp.cursor = struct();
+% pp.cursor.factor_to_use                    = json_params.simulation.idx_factor;
+% pp.cursor.angle_power                      = json_params.simulation.power;
+% pp.cursor.thresh_quiescence_cursorDecoder  = json_params.simulation.thresh_quiescence_cursorDecoder;
+% pp.cursor.thresh_quiescence_cursorMag      = json_params.simulation.thresh_quiescence_cursorMag;
+% pp.cursor.angle_power                      = json_params.simulation.power;
+% pp.cursor.win_smooth_cursor                = json_params.simulation.win_smooth_cursor;
+% 
+% pp.trial = struct();
+% pp.trial.duration_quiescence_hold = json_params.simulation.duration_quiescence_hold;
+% pp.trial.duration_threshold       = json_params.simulation.duration_threshold_hold;
 
 %% Pull from expParams file
 % pulls all fields, but then you can delete ones you want
@@ -56,7 +62,7 @@ pp.timing = rmfield(pp.timing, 'duration_session');
 
 expSettings = pp;
 
-filepath_save = 'D:\RH_local\data\cage_0315\mouse_0315N\20230423\analysis_data\day0_analysis\expSettings.mat';
+filepath_save = 'D:\RH_local\data\cage_0916\mouse_0916N\20231022\analysis_data\day0_analysis\expSettings.mat';
 save(filepath_save, 'expSettings')
 
 %%

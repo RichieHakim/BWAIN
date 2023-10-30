@@ -1,4 +1,5 @@
 %% Set conditions params
+% TODO: Prepare more logger files. Pull from randomly chosen logger file
 
 maxNumTrials = 500; % always make the max number of trials way more than what is possible
 
@@ -8,12 +9,21 @@ condition_names{2} = 'feedbackLinked';
 condition_names{3} = 'rewardOn';
 numConditions = length(condition_names);
 
-%% Make fake decoder data for each trial
-
-% Scale to get a set percentage of threshold hits
+% Default setting: For baseline session.
 threshold = 1.5;
-goal_threshAchieved = 0.4; % goal of what fraction of fake cursor trials reach threshold
+goal_threshAchieved = 0.4; 
+experiment_name = 'random_playback';
 
+% % Scale to get a set percentage of threshold hits
+% % threshold = 1.0; %% mouse_0916N
+% threshold = 1.6; %% mouse_0908
+% goal_threshAchieved = 0.4; % goal of what fraction of fake cursor trials reach threshold
+% experiment_name = 'show_intention';
+
+% dir = 'D:\RH_local\data\cage_0916\mouse_0916N\20231030\analysis_data';
+% dir = 'D:\RH_local\data\cage_0908\mouse_0908\20231030\analysis_data';
+dir = 'D:\RH_local\data\cage_0914\mouse_0914\20231030\analysis_data';
+%% Make fake decoder data for each trial
 % Import a logger to steal decoder output for fake feedback decoder
 path_fakeData = 'D:\RH_local\fake_data_for_trialStuff\logger.mat';
 load(path_fakeData)
@@ -55,6 +65,29 @@ while ~(criterion_fun(thresh_check_avg_first10 , 0.01) && criterion_fun(thresh_c
     end
     cc = cc+1;
 end
+
+
+%% 20230818 Make success fakeCursor trials longer than 5 seconds
+minTrialDuration = 5 * Fs;
+[fake_val, fake_cross] = max(max(fakeCursors - threshold, 0) > 0, [], 2);
+% disp(num2str(sum((fake_cross ~= 1) & (fake_cross < minTrialDuration))))
+trial_tooShort = find((fake_cross ~= 1) & (fake_cross < minTrialDuration));
+trial_fail = find(fake_cross == 1);
+
+for ii=1:length(trial_tooShort)
+    trial_index = trial_tooShort(ii);
+    % Add random variation so that not every trial ends at 5 seconds
+    numframe_shift = minTrialDuration - fake_cross(trial_index) + randi(4 * Fs);
+    fakeCursors(trial_index,:) = circshift(fakeCursors(trial_index,:), numframe_shift);
+    % Randomly choose failed trials to fill frames in
+    fillin = trial_fail(randi(length(trial_fail)));
+    fakeCursors(trial_index,1:numframe_shift) = fakeCursors(fillin, 1:numframe_shift);
+end
+
+% [post_fake_val, post_fake_cross] = max(max(fakeCursors - threshold, 0) > 0, [], 2);
+% disp(num2str(sum((post_fake_cross ~= 1) & (post_fake_cross < minTrialDuration))))
+% figure()
+% plot(post_fake_cross - 1)
 
 %%
 fakeCursors_rs = reshape(fakeCursors',1,[])';
@@ -101,169 +134,178 @@ trialStuff.fakeFeedback.thresh_check_avg_first10 = thresh_check_avg_first10;
 % run only one of the following cell blocks
 
 %% Experiment: goal-directed
-experiment_name = 'goal_directed_contingency_degridation_blocks';
-cond_bool = [[1,1,1] ;...
-    [1,1,0]];
-numConditions = size(cond_bool,1);
+%     experiment_name = 'goal_directed_contingency_degridation_blocks';
 
-cond_all = [ones(75,1)*1 ; ones(75,1)*2 ; ones(350,1)*1]; % index to use for each trial
+if strcmpi(experiment_name, 'goal_directed_contingency_degridation_blocks')
+    disp('goal_directed_contingency_degridation_blocks')
+    cond_bool = [[1,1,1] ;...
+        [1,1,0]];
+    numConditions = size(cond_bool,1);
 
-clear conditions_trials
-for ii = 1:numConditions
-    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
-end
+    cond_all = [ones(75,1)*1 ; ones(75,1)*2 ; ones(350,1)*1]; % index to use for each trial
 
-figure; imagesc(conditions_trials)
+    clear conditions_trials
+    for ii = 1:numConditions
+        conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+    end
 
-trialStuff.expType = experiment_name;
-trialStuff.condTrialBool = conditions_trials;
-trialStuff.condBool = cond_bool;
-trialStuff.condTrials = cond_all;
-trialStuff.condNames = condition_names;
-trialStuff.condProbs = 'N/A';
-trialStuff.homogeneousBlockSize = 'N/A';
+    figure; imagesc(conditions_trials)
+
+    trialStuff.expType = experiment_name;
+    trialStuff.condTrialBool = conditions_trials;
+    trialStuff.condBool = cond_bool;
+    trialStuff.condTrials = cond_all;
+    trialStuff.condNames = condition_names;
+    trialStuff.condProbs = 'N/A';
+    trialStuff.homogeneousBlockSize = 'N/A';
 %% Experiment: show forward model cells
 % - This format makes a matrix where each row is a trial, and each column is
 % a condition (ie cursorOn, feedbackLinked, rewardOn)
 % - I added the constraint that homogenizes the distribution of conditions
-experiment_name = 'show_forward_model';
-cond_bool = [[1,1,1] ;...
-             [0,1,1] ;...
-             [1,0,0]];
-numConditions = size(cond_bool,1);
+%     experiment_name = 'show_forward_model';
+elseif strcmpi(experiment_name, 'show_forward_model')
+    disp('show_forward_model')
+    cond_bool = [[1,1,1] ;...
+                 [0,1,1] ;...
+                 [1,0,0]];
+    numConditions = size(cond_bool,1);
 
-prob_cond = [0.8;0.1;0.1];
+    prob_cond = [0.8;0.1;0.1];
 
-hbs = 10; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
+    hbs = 10; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
 
-criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
+    criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
 
-cond_all = zeros(maxNumTrials,1);
-tmp_conds = [];
-for jj = 1:numConditions
-    tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
-end
-for ii= 0:(maxNumTrials/hbs)-1
-    criterion_output = zeros(numConditions,1);
-    while sum(criterion_output) < 3
-        cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
-        for jj = 1:numConditions
-            criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+    cond_all = zeros(maxNumTrials,1);
+    tmp_conds = [];
+    for jj = 1:numConditions
+        tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
+    end
+    for ii= 0:(maxNumTrials/hbs)-1
+        criterion_output = zeros(numConditions,1);
+        while sum(criterion_output) < 3
+            cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
+            for jj = 1:numConditions
+                criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+            end
         end
     end
-end
-figure; plot(cond_all)
+    figure; plot(cond_all)
 
-clear conditions_trials
-for ii = 1:numConditions
-    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
-end
+    clear conditions_trials
+    for ii = 1:numConditions
+        conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+    end
 
-figure; imagesc(conditions_trials)
-figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
+    figure; imagesc(conditions_trials)
+    figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
 
-trialStuff.expType = experiment_name;
-trialStuff.condTrialBool = conditions_trials;
-trialStuff.condBool = cond_bool;
-trialStuff.condTrials = cond_all;
-trialStuff.condNames = condition_names;
-trialStuff.condProbs = prob_cond;
-trialStuff.homogeneousBlockSize = hbs;
+    trialStuff.expType = experiment_name;
+    trialStuff.condTrialBool = conditions_trials;
+    trialStuff.condBool = cond_bool;
+    trialStuff.condTrials = cond_all;
+    trialStuff.condNames = condition_names;
+    trialStuff.condProbs = prob_cond;
+    trialStuff.homogeneousBlockSize = hbs;
 %% Experiment: show 'intention'
 % - This format makes a matrix where each row is a trial, and each column is
 % a condition (ie cursorOn, feedbackLinked, rewardOn)
 % - I added the constraint that homogenizes the distribution of conditions
-experiment_name = 'show_intention';
-cond_bool = [[1,1,1] ;...
-             [1,0,1] ;...
-             [0,1,0]];
-numConditions = size(cond_bool,1);
+%     experiment_name = 'show_intention';
+elseif strcmpi(experiment_name, 'show_intention')
+    disp('show_intention')
+    cond_bool = [[1,1,1] ;...
+                 [1,0,1] ;...
+                 [0,1,0]];
+    numConditions = size(cond_bool,1);
 
-prob_cond = [0.9;0.05;0.05];
+    prob_cond = [0.9;0.05;0.05];
 
-hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
+    hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
 
-criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
+    criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
 
-cond_all = zeros(maxNumTrials,1);
-tmp_conds = [];
-for jj = 1:numConditions
-    tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
-end
-for ii= 0:(maxNumTrials/hbs)-1
-    criterion_output = zeros(numConditions,1);
-    while sum(criterion_output) < 3
-        cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
-        for jj = 1:numConditions
-            criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+    cond_all = zeros(maxNumTrials,1);
+    tmp_conds = [];
+    for jj = 1:numConditions
+        tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
+    end
+    for ii= 0:(maxNumTrials/hbs)-1
+        criterion_output = zeros(numConditions,1);
+        while sum(criterion_output) < 3
+            cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
+            for jj = 1:numConditions
+                criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+            end
         end
     end
-end
-figure; plot(cond_all)
+    figure; plot(cond_all)
 
-clear conditions_trials
-for ii = 1:numConditions
-    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
-end
+    clear conditions_trials
+    for ii = 1:numConditions
+        conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+    end
 
-figure; imagesc(conditions_trials)
-figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
+    figure; imagesc(conditions_trials)
+    figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
 
-trialStuff.expType = experiment_name;
-trialStuff.condTrialBool = conditions_trials;
-trialStuff.condBool = cond_bool;
-trialStuff.condTrials = cond_all;
-trialStuff.condNames = condition_names;
-trialStuff.condProbs = prob_cond;
-trialStuff.homogeneousBlockSize = hbs;
+    trialStuff.expType = experiment_name;
+    trialStuff.condTrialBool = conditions_trials;
+    trialStuff.condBool = cond_bool;
+    trialStuff.condTrials = cond_all;
+    trialStuff.condNames = condition_names;
+    trialStuff.condProbs = prob_cond;
+    trialStuff.homogeneousBlockSize = hbs;
 
 %% Experiment: dissociate sensory
 % - This format makes a matrix where each row is a trial, and each column is
 % a condition (ie cursorOn, feedbackLinked, rewardOn)
 % - I added the constraint that homogenizes the distribution of conditions
-experiment_name = 'dissociate_sensory';
-cond_bool = [[1,1,1] ;...
-             [1,0,1] ;...
-             [0,1,1]];
-numConditions = size(cond_bool,1);
+%     experiment_name = 'dissociate_sensory';
+elseif strcmpi(experiment_name, 'dissociate_sensory')
+    disp('dissociate_sensory')
+    cond_bool = [[1,1,1] ;...
+                 [1,0,1] ;...
+                 [0,1,1]];
+    numConditions = size(cond_bool,1);
 
-prob_cond = [0.8;0.1;0.1];
+    prob_cond = [0.8;0.1;0.1];
 
-hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
+    hbs = 20; % homogeneous_block_size. MUST be factor of maxNumTrials. ALSO, hbs*prob_cond MUST be all integers
 
-criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
+    criterion_fun = @(cond_all,cond) abs(mean(cond_all == cond) - prob_cond(cond)) ==0;
 
-cond_all = zeros(maxNumTrials,1);
-tmp_conds = [];
-for jj = 1:numConditions
-    tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
-end
-for ii= 0:(maxNumTrials/hbs)-1
-    criterion_output = zeros(numConditions,1);
-    while sum(criterion_output) < 3
-        cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
-        for jj = 1:numConditions
-            criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+    cond_all = zeros(maxNumTrials,1);
+    tmp_conds = [];
+    for jj = 1:numConditions
+        tmp_conds = [tmp_conds;ones(prob_cond(jj)*hbs,1)*jj];
+    end
+    for ii= 0:(maxNumTrials/hbs)-1
+        criterion_output = zeros(numConditions,1);
+        while sum(criterion_output) < 3
+            cond_all(1+(ii*hbs):((ii+1)*hbs)) = tmp_conds(randperm(length(tmp_conds)));
+            for jj = 1:numConditions
+                criterion_output(jj) = criterion_fun(cond_all(1+(ii*hbs):((ii+1)*hbs)),jj);
+            end
         end
     end
-end
-figure; plot(cond_all)
+    figure; plot(cond_all)
 
-clear conditions_trials
-for ii = 1:numConditions
-    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
-end
+    clear conditions_trials
+    for ii = 1:numConditions
+        conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+    end
 
-figure; imagesc(conditions_trials)
-figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
+    figure; imagesc(conditions_trials)
+    figure; plot(smoothdata([cond_all==1,cond_all==2,cond_all==3],1,'sgolay',20))
 
-trialStuff.expType = experiment_name;
-trialStuff.condTrialBool = conditions_trials;
-trialStuff.condBool = cond_bool;
-trialStuff.condTrials = cond_all;
-trialStuff.condNames = condition_names;
-trialStuff.condProbs = prob_cond;
-trialStuff.homogeneousBlockSize = hbs;
+    trialStuff.expType = experiment_name;
+    trialStuff.condTrialBool = conditions_trials;
+    trialStuff.condBool = cond_bool;
+    trialStuff.condTrials = cond_all;
+    trialStuff.condNames = condition_names;
+    trialStuff.condProbs = prob_cond;
+    trialStuff.homogeneousBlockSize = hbs;
 
 
 
@@ -271,31 +313,37 @@ trialStuff.homogeneousBlockSize = hbs;
 % - This format makes a matrix where each row is a trial, and each column is
 % a condition (ie cursorOn, feedbackLinked, rewardOn)
 % - I added the constraint that homogenizes the distribution of conditions
-experiment_name = 'random_playback';
-cond_bool = [[1,0,1]];
-numConditions = size(cond_bool,1);
+%     experiment_name = 'random_playback';
+elseif strcmpi(experiment_name, 'random_playback')
+    disp('random_playback')
+    cond_bool = [[1,0,1]];
+    numConditions = size(cond_bool,1);
 
-cond_all = [ones(500,1)*1];
+    cond_all = [ones(500,1)*1];
 
-clear conditions_trials
-for ii = 1:numConditions
-    conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+    clear conditions_trials
+    for ii = 1:numConditions
+        conditions_trials(cond_all==ii,:) = repmat(cond_bool(ii,:) , sum(cond_all==ii),1);
+    end
+
+    figure; imagesc(conditions_trials)
+
+    trialStuff.expType = experiment_name;
+    trialStuff.condTrialBool = conditions_trials;
+    trialStuff.condBool = cond_bool;
+    trialStuff.condTrials = cond_all;
+    trialStuff.condNames = condition_names;
+    trialStuff.condProbs = 'N/A';
+    trialStuff.homogeneousBlockSize = 'N/A';
+else
+    error('experiment is not defined')
 end
-
-figure; imagesc(conditions_trials)
-
-trialStuff.expType = experiment_name;
-trialStuff.condTrialBool = conditions_trials;
-trialStuff.condBool = cond_bool;
-trialStuff.condTrials = cond_all;
-trialStuff.condNames = condition_names;
-trialStuff.condProbs = 'N/A';
-trialStuff.homogeneousBlockSize = 'N/A';
-
 %%
-% dir = 'D:\RH_local\data\cage_0403\mouse_0403L\20230703\analysis_data';
-dir = 'D:\RH_local\data\cage_0403\mouse_0403R\20230703\analysis_data';
+% % dir = 'D:\RH_local\data\cage_0916\mouse_0916N\20231027\analysis_data';
+% % dir = 'D:\RH_local\data\cage_0908\mouse_0908\20231027\analysis_data';
+% dir = 'D:\RH_local\data\cage_0914\mouse_0914\20231027\analysis_data';
 save([dir , '\trialStuff.mat'] , 'trialStuff')
+disp(['Saved trialStuff to:  ' ,dir]) 
 
 
 % %%

@@ -1,5 +1,7 @@
-% path_mouse = 'D:\RH_local\data\cage_0403\mouse_0403L\20230702\'
-path_mouse = 'D:\RH_local\data\cage_0403\mouse_0403R\20230702\'
+% path_mouse = 'D:\RH_local\data\cage_0916\mouse_0916N\20231021\';
+% path_mouse = 'D:\RH_local\data\cage_0908\mouse_0908\20231021\'
+% path_mouse = 'D:\RH_local\data\cage_0914\mouse_0914\20231021\'
+
 
 path_stack = fullfile(path_mouse, 'scanimage_data\zstack\zstack_960_00001_00001.tif');
 path_save = fullfile(path_mouse, 'analysis_data\stack_960nm_dense.mat');
@@ -35,8 +37,8 @@ reader = ScanImageTiffReader(path_stack);
 slices_raw = permute(reader.data(),[3,2,1]);
 
 slices_rs = reshape(slices_raw, num_frames_per_slice, num_slices, num_volumes, size(slices_raw,2), size(slices_raw,3));
-% slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,:,:,:);
-slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,1:5,:,:);
+slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,:,:,:);
+% slices_rs = slices_rs(frames_to_discard_per_slice+1:end,:,1:5,:,:);
 disp(size(slices_rs))
 
 stack.stack_avg = squeeze(squeeze(mean(mean(slices_rs, 1), 3)));
@@ -75,6 +77,10 @@ stack_sparse.params.num_slices = num_slices;
 stack_sparse.params.num_volumes = num_volumes;
 stack_sparse.params.step_size_um = step_size_um;
 stack_sparse.params.centered = centered;
+
+%%
+figure()
+imagesc(squeeze(stack_sparse.stack_avg(3,:,:)))
 
 %%
 save(path_save_sparse, 'stack_sparse')
